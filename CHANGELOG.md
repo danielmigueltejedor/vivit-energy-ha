@@ -1,4 +1,12 @@
 # CHANGELOG
+## 1.1.2 — 2025-11-06
+
+### Corregido
+-	manifest.json: ajustado documentation, issue_tracker y metadatos para que, si instalas desde GitHub, se muestren los enlaces correctos a GitHub (en Codeberg se mantiene el manifest anterior con sus enlaces propios).
+
+### Notas
+-	Sin cambios funcionales en la integración ni en entidades (unique_id intactos).
+-	No requiere pasos de migración. Reiniciar Home Assistant tras actualizar es suficiente.
 
 ## 1.1.1 — 2025-11-05
 ### Corregido
