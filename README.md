@@ -30,7 +30,11 @@ Permite consultar consumos, costes, facturas y batería virtual directamente des
 
 ## 🧩 Instalación
 
-### 🔹 Opción 1 — Manual (descarga directa)
+### 🔹 Opción 1 — HACS (Recomendada)
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=danielmigueltejedor&repository=vivit-energy-ha&category=Integration)
+
+### 🔹 Opción 2 — Manual (descarga directa)
 
 1. Descarga el repositorio desde GitHub:  
    [https://github.com/dmigut00/vivit-energy-ha](https://github.com/dmigut00/vivit-energy-ha)
@@ -45,7 +49,7 @@ Permite consultar consumos, costes, facturas y batería virtual directamente des
 
 ---
 
-### 🔹 Opción 2 — Vía Terminal (SSH)
+### 🔹 Opción 3 — Vía Terminal (SSH)
 
 > 💡 Ideal si usas el complemento **Terminal & SSH** en Home Assistant OS o Supervised.
 
