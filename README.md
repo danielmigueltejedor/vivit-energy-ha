@@ -136,7 +136,7 @@ rm -rf /config/.vivit-tmp
 
 ## 🧑‍💻 Desarrollador
 
-- **Autor:** [@dmigut00](https://github.com/danielmigueltejedor)  
+- **Autor:** [@danielmigueltejedor](https://github.com/danielmigueltejedor)  
 - **Versión:** 1.1.3
 - **Tipo:** Integración personalizada no oficial  
 - **Licencia:** [MIT](./LICENSE)
