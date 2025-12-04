@@ -1,4 +1,4 @@
-# ⚡ Vivit Energy Portal (Unofficial) for Home Assistant
+# ⚡ Vivit Energy Portal for Home Assistant
 
 ![Version](https://img.shields.io/badge/version-1.1.3-blue.svg)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5?logo=home-assistant)
