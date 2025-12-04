@@ -1,4 +1,10 @@
 # CHANGELOG
+## 1.1.3 — 2025-12-04
+
+### Cambiado
+- Se actualizaron lo metadatos de la integración para redirigir correctamente al nuevo repositorio.
+
+
 ## 1.1.2 — 2025-11-06
 
 ### Corregido
