@@ -1,6 +1,6 @@
 # ⚡ Vivit Energy Portal for Home Assistant
 
-![Version](https://img.shields.io/badge/version-1.1.3-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.4-blue.svg)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5?logo=home-assistant)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-stable-success.svg)
@@ -143,7 +143,7 @@ rm -rf /config/.vivit-tmp
 ## 🧑‍💻 Desarrollador
 
 - **Autor:** [@danielmigueltejedor](https://github.com/danielmigueltejedor)  
-- **Versión:** 1.1.3
+- **Versión:** 1.1.4
 - **Tipo:** Integración personalizada no oficial  
 - **Licencia:** [MIT](./LICENSE)
 
