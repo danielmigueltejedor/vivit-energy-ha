@@ -1,4 +1,10 @@
 # CHANGELOG
+## 1.1.4— 2025-12-04
+
+### Cambiado
+- Se agregó branding.
+
+  
 ## 1.1.3 — 2025-12-04
 
 ### Cambiado
