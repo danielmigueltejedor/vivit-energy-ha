@@ -1,5 +1,21 @@
 # CHANGELOG
-## 1.1.4— 2025-12-04
+## 1.1.5 — 2026-04-13
+
+### Corregido
+- Se aísla la sesión HTTP por config entry para evitar fugas de cookies entre cuentas o contratos.
+- El flujo de configuración reutiliza la misma lógica robusta de login y descubrimiento de contratos que usa la integración en runtime.
+- Se propagan `contract_id`, `contract_type`, `contract_index` y `device_name` al runtime para mantener el dispositivo correcto por contrato.
+- Se corrige la creación de sensores para no generar términos de gas en contratos de electricidad.
+- Se alinean las traducciones en portugués con las claves reales del flujo.
+- Se actualizan README y enlaces del repositorio a la versión y ubicación actuales.
+
+### Cambiado
+- La carga de datos por contrato ahora se hace en paralelo para reducir el tiempo de refresco cuando hay varios contratos.
+- Las peticiones de facturas usan el `Referer` de facturación, en línea con la documentación del proyecto.
+
+---
+
+## 1.1.4 — 2025-12-04
 
 ### Cambiado
 - Se agregó branding.

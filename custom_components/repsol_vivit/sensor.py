@@ -56,12 +56,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     stored = hass.data[DOMAIN][entry.entry_id]
     coordinator = stored["coordinator"]
 
-    # En nuestra rama actual, __init__.py guarda estos campos por entrada:
-    # - contract_id, contract_type, device_name
-    # Si no existieran (retrocompat), hacemos fallback a crear para todos.
-    contract_id = stored.get("contract_id")
-    contract_type = stored.get("contract_type")
-    device_name = stored.get("device_name")
+    contract_id = stored.get("contract_id") or entry.data.get("contract_id")
+    contract_type = stored.get("contract_type") or entry.data.get("contract_type")
+    device_name = stored.get("device_name") or entry.data.get("device_name")
 
     data: Dict[str, Dict[str, Any]] = coordinator.data or {}
     entities: List[SensorEntity] = []
@@ -89,7 +86,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 def _build_contract_entities(
     full_data: Dict[str, Dict[str, Any]],
     contract_id: str,
-    device_name: str,
+    device_name: str | None,
     contract_type: str | None,
     coordinator,
 ) -> List[SensorEntity]:
@@ -106,10 +103,11 @@ def _build_contract_entities(
     house_contract = next((c for c in house_contracts if c.get("code") == contract_id), {})
 
     ctype = (contract_type or cinfo.get("contractType") or "ELECTRICITY").upper()
+    resolved_device_name = device_name or f"Contrato ({'Electricidad' if ctype == 'ELECTRICITY' else 'Gas'})"
 
     device = DeviceInfo(
         identifiers={(DOMAIN, f"{house_id}_{contract_id}")},
-        name=device_name,  # p.ej. "Contrato 2 (Electricidad)"
+        name=resolved_device_name,
         manufacturer="Vivit Energy (unofficial)",
         model=("Electricidad" if ctype == "ELECTRICITY" else "Gas"),
         serial_number=str(contract_id),
@@ -121,7 +119,7 @@ def _build_contract_entities(
         var = sd["var"]
         # Filtro tipo
         if ctype == "ELECTRICITY" and var in {"fixedTerm", "variableTerm"}:
-            pass  # OK (no los creamos para electricidad)
+            continue
         elif ctype == "GAS" and var in {"power", "fee", "pricesPowerPunta", "pricesPowerValle", "pricesEnergyAmount"}:
             continue  # no aplican a gas
 

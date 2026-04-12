@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Iniciar sessão",
+        "title": "Adicionar contrato",
         "data": {
           "username": "Nome de utilizador",
           "password": "Palavra-passe"
@@ -11,25 +11,18 @@
       "contract": {
         "title": "Selecionar Contrato",
         "data": {
-          "contract_index": "Selecione o contrato com base no CUPS"
+          "contract_code": "Contrato (CUPS)"
         }
       }
     },
     "error": {
-      "already_configured": "Este contrato já está configurado. Selecione um contrato diferente.",
-      "login_failed": "Falha ao iniciar sessão com as credenciais fornecidas. Verifique o utilizador e a palavra-passe.",
-      "invalid_contracts_data": "Falha ao obter os dados do contrato. Verifique a ligação ou as definições da API.",
-      "invalid_contract_selection": "Seleção de contrato inválida. Tente novamente."
+      "invalid_auth": "Credenciais inválidas. Verifique o nome de utilizador e a palavra-passe.",
+      "cannot_connect": "Não foi possível ligar ao serviço. Verifique a sua ligação à Internet e tente novamente.",
+      "no_contracts": "Não foram encontrados contratos para a sua conta.",
+      "unknown": "Erro inesperado."
     },
     "abort": {
-      "already_configured": "Este contrato já foi configurado e não pode ser adicionado novamente."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Integração Vivit Energy (Repsol)"
-      }
+      "already_configured": "Este contrato já está configurado."
     }
   }
 }
