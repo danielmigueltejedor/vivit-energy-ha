@@ -1,5 +1,5 @@
 # CHANGELOG
-## 1.1.5 — 2026-04-13
+## 2.0.0 — 2026-04-13
 
 ### Corregido
 - Se aísla la sesión HTTP por config entry para evitar fugas de cookies entre cuentas o contratos.
