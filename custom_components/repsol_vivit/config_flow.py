@@ -10,6 +10,7 @@ from aiohttp.client_exceptions import ClientConnectorError
 
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .api import RepsolLuzYGasAPI
@@ -30,7 +31,6 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._creds: dict[str, Any] | None = None
         self._contracts: list[dict[str, Any]] | None = None
-        self._reauth_entry: ConfigEntry | None = None
 
     async def _async_fetch_contracts(
         self, username: str, password: str
@@ -141,7 +141,6 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]):
         """Handle reauthentication start."""
-        self._reauth_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         self._creds = {
             "username": str(entry_data.get("username", "")),
             "password": str(entry_data.get("password", "")),
@@ -152,7 +151,7 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None):
         """Confirm reauthentication with new credentials."""
         errors: dict[str, str] = {}
-        entry = self._reauth_entry
+        entry = self._get_reauth_entry()
         if entry is None:
             return self.async_abort(reason="unknown")
 
@@ -180,18 +179,20 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         if contract.get("code") == entry.data.get("contract_id")
                     )
                     contract_type = (selected.get("type") or "ELECTRICITY").upper()
-                    new_data = {
-                        **entry.data,
+                    await self.async_set_unique_id(f"{DOMAIN}_{entry.data.get('contract_id')}")
+                    self._abort_if_unique_id_mismatch()
+
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        data_updates={
                         "username": user_input["username"],
                         "password": user_input["password"],
                         "contract_index": idx,
                         "contract_type": contract_type,
                         "house_id": selected.get("house_id"),
                         "device_name": build_device_name(idx, contract_type),
-                    }
-                    self.hass.config_entries.async_update_entry(entry, data=new_data)
-                    await self.hass.config_entries.async_reload(entry.entry_id)
-                    return self.async_abort(reason="reauth_successful")
+                        },
+                    )
             except (ClientConnectorError, asyncio.TimeoutError):
                 errors["base"] = "cannot_connect"
             except Exception as err:  # noqa: BLE001
@@ -220,16 +221,14 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     @staticmethod
+    @callback
     def async_get_options_flow(config_entry: ConfigEntry):
         """Create the options flow."""
-        return RepsolOptionsFlow(config_entry)
+        return RepsolOptionsFlow()
 
 
 class RepsolOptionsFlow(config_entries.OptionsFlow):
     """Options flow for Vivit/Repsol."""
-
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        self.config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Manage the integration options."""

@@ -1,5 +1,5 @@
 # CHANGELOG
-## 2.1.0 — 2026-04-13
+## 2.1.1 — 2026-04-13
 
 ### Añadido
 - Reautenticación desde Home Assistant cuando cambian las credenciales de acceso.
