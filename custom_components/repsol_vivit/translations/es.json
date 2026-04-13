@@ -13,16 +13,37 @@
         "data": {
           "contract_code": "Contrato (CUPS)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Volver a autenticar",
+        "description": "Actualiza las credenciales para %{username}.",
+        "data": {
+          "username": "Usuario",
+          "password": "Contraseña"
+        }
       }
     },
     "error": {
       "invalid_auth": "Credenciales inválidas. Verifique su usuario y contraseña.",
       "cannot_connect": "No se puede conectar con el servicio. Compruebe su conexión a Internet o inténtelo más tarde.",
       "no_contracts": "No se han encontrado contratos en su cuenta.",
+      "contract_not_found": "El contrato configurado ya no está disponible en esta cuenta.",
       "unknown": "Error inesperado."
     },
     "abort": {
-      "already_configured": "Este contrato ya está configurado."
+      "already_configured": "Este contrato ya está configurado.",
+      "reauth_successful": "La reautenticación se ha completado correctamente."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones",
+        "data": {
+          "update_interval_minutes": "Intervalo de actualización (minutos)",
+          "enable_virtual_battery_sensors": "Crear sensores de batería virtual"
+        }
+      }
     }
   },
   "entity": {

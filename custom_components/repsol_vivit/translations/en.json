@@ -13,16 +13,37 @@
         "data": {
           "contract_code": "Contract (CUPS)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate",
+        "description": "Update the credentials for %{username}.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid credentials. Check your username and password.",
       "cannot_connect": "Cannot connect to the service. Check your Internet connection and try again.",
       "no_contracts": "No contracts found for your account.",
+      "contract_not_found": "The configured contract is no longer available in this account.",
       "unknown": "Unexpected error."
     },
     "abort": {
-      "already_configured": "This contract is already configured."
+      "already_configured": "This contract is already configured.",
+      "reauth_successful": "Reauthentication completed successfully."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "update_interval_minutes": "Update interval (minutes)",
+          "enable_virtual_battery_sensors": "Create virtual battery sensors"
+        }
+      }
     }
   },
   "entity": {

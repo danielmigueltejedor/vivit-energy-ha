@@ -1,4 +1,22 @@
 # CHANGELOG
+## 2.1.0 — 2026-04-13
+
+### Añadido
+- Reautenticación desde Home Assistant cuando cambian las credenciales de acceso.
+- Options flow para ajustar el intervalo de actualización y activar o desactivar los sensores de batería virtual.
+- Nuevo `binary_sensor` para indicar si la última factura está pagada.
+- Base de tests ligeros con `unittest` para helpers, traducciones y coherencia de versión.
+
+### Cambiado
+- El estado de “última factura pagada” deja de exponerse como sensor de texto y pasa a `binary_sensor`.
+- El intervalo de actualización se calcula por entrada de configuración a partir de sus opciones.
+
+### Corregido
+- Se fuerza `reauth` cuando falla la autenticación en lugar de seguir sirviendo caché obsoleta.
+- Se mantiene el nombre estable del dispositivo tras reautenticación y cambios de opciones.
+
+---
+
 ## 2.0.0 — 2026-04-13
 
 ### Corregido

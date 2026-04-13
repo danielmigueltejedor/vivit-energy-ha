@@ -1,6 +1,6 @@
 # ⚡ Vivit Energy Portal for Home Assistant
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5?logo=home-assistant)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-stable-success.svg)
@@ -25,6 +25,8 @@ Permite consultar consumos, costes, facturas y batería virtual directamente des
   - Batería virtual (si aplica)
 - Actualización automática cada 2 horas  
 - Compatible con **múltiples contratos**
+- Reautenticación desde Home Assistant cuando cambian las credenciales
+- Opciones para ajustar el intervalo de actualización y los sensores de batería virtual
 
 ---
 
@@ -116,6 +118,8 @@ rm -rf /config/.vivit-tmp
 4. Selecciona el contrato que quieras vincular
 5. ¡Listo! Las entidades se crearán automáticamente.
 
+Desde **Configurar** en la integración puedes cambiar el intervalo de actualización y activar o desactivar los sensores de batería virtual.
+
 ---
 
 ## 📊 Entidades creadas
@@ -143,7 +147,7 @@ rm -rf /config/.vivit-tmp
 ## 🧑‍💻 Desarrollador
 
 - **Autor:** [@danielmigueltejedor](https://github.com/danielmigueltejedor)  
-- **Versión:** 2.0.0
+- **Versión:** 2.1.0
 - **Tipo:** Integración personalizada no oficial  
 - **Licencia:** [MIT](./LICENSE)
 

@@ -11,6 +11,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, LOGGER
+from .helpers import is_virtual_battery_enabled
 
 # Sensores base (nombres LIMPIOS; el nombre del dispositivo es quien lleva "Contrato N (…)").
 SENSOR_DEFS = [
@@ -23,7 +24,6 @@ SENSOR_DEFS = [
     {"name": "Importe variable", "var": "amountVariable", "class": SensorDeviceClass.MONETARY},
     {"name": "Promedio diario", "var": "averageAmount", "class": SensorDeviceClass.MONETARY},
     {"name": "Última factura", "var": "lastInvoiceAmount", "class": SensorDeviceClass.MONETARY},
-    {"name": "Última factura pagada", "var": "lastInvoicePaid", "class": None},
     {"name": "Próxima factura", "var": "nextInvoiceAmount", "class": SensorDeviceClass.MONETARY},
     {"name": "Variable próxima factura", "var": "nextInvoiceVariableAmount", "class": SensorDeviceClass.MONETARY},
     {"name": "Fijo próxima factura", "var": "nextInvoiceFixedAmount", "class": SensorDeviceClass.MONETARY},
@@ -59,13 +59,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     contract_id = stored.get("contract_id") or entry.data.get("contract_id")
     contract_type = stored.get("contract_type") or entry.data.get("contract_type")
     device_name = stored.get("device_name") or entry.data.get("device_name")
+    enable_virtual_battery = is_virtual_battery_enabled(entry.options)
 
     data: Dict[str, Dict[str, Any]] = coordinator.data or {}
     entities: List[SensorEntity] = []
 
     if contract_id and contract_id in data:
         # Creación modo 1-contrato (preferido)
-        entities.extend(_build_contract_entities(data, contract_id, device_name, contract_type, coordinator))
+        entities.extend(
+            _build_contract_entities(
+                data,
+                contract_id,
+                device_name,
+                contract_type,
+                coordinator,
+                enable_virtual_battery,
+            )
+        )
     else:
         # Fallback: crear para todos los contratos del payload
         for cid in list(data.keys()):
@@ -73,7 +83,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             cinfo = payload.get("contracts") or {}
             ctype = (cinfo.get("contractType") or "ELECTRICITY").upper()
             dev_name = f"Contrato (Auto) ({'Electricidad' if ctype == 'ELECTRICITY' else 'Gas'})"
-            entities.extend(_build_contract_entities(data, cid, dev_name, ctype, coordinator))
+            entities.extend(
+                _build_contract_entities(
+                    data,
+                    cid,
+                    dev_name,
+                    ctype,
+                    coordinator,
+                    enable_virtual_battery,
+                )
+            )
 
     if not entities:
         LOGGER.error("No se han podido crear entidades: datos insuficientes.")
@@ -89,6 +108,7 @@ def _build_contract_entities(
     device_name: str | None,
     contract_type: str | None,
     coordinator,
+    enable_virtual_battery: bool,
 ) -> List[SensorEntity]:
     """Construye todas las entidades para un contrato."""
     entities: List[SensorEntity] = []
@@ -140,7 +160,7 @@ def _build_contract_entities(
         )
 
     # Batería virtual (solo electricidad) si hay datos
-    if ctype == "ELECTRICITY":
+    if enable_virtual_battery and ctype == "ELECTRICITY":
         vb = payload.get("virtual_battery_history") or {}
         if vb and any(vb.values()):
             for sd in VB_DEFS:
@@ -265,7 +285,7 @@ class VivitSensor(VivitBase):
             return (data.get("costs") or {}).get(self.variable)
 
         # ÚLTIMA FACTURA
-        if self.variable in {"lastInvoiceAmount", "lastInvoicePaid"}:
+        if self.variable == "lastInvoiceAmount":
             inv = data.get("invoices")
             obj = None
             if isinstance(inv, list) and inv:
@@ -273,10 +293,8 @@ class VivitSensor(VivitBase):
             elif isinstance(inv, dict):
                 obj = inv
             if not obj:
-                return None if self.variable == "lastInvoiceAmount" else "No"
-            if self.variable == "lastInvoiceAmount":
-                return obj.get("amount") or obj.get("totalAmount")
-            return "Yes" if (obj.get("status") == "PAID") else "No"
+                return None
+            return obj.get("amount") or obj.get("totalAmount")
 
         # PRÓXIMA FACTURA
         if self.variable in {"nextInvoiceAmount", "nextInvoiceVariableAmount", "nextInvoiceFixedAmount"}:

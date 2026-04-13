@@ -1,0 +1,87 @@
+"""Unit tests for pure Vivit helper functions."""
+from __future__ import annotations
+
+import importlib.util
+import sys
+import types
+import unittest
+from datetime import timedelta
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CUSTOM_COMPONENTS_DIR = ROOT / "custom_components"
+COMPONENT_DIR = CUSTOM_COMPONENTS_DIR / "repsol_vivit"
+
+
+def _load_module(module_name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec is not None and spec.loader is not None
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+custom_components_pkg = sys.modules.setdefault("custom_components", types.ModuleType("custom_components"))
+custom_components_pkg.__path__ = [str(CUSTOM_COMPONENTS_DIR)]
+
+component_pkg = sys.modules.setdefault(
+    "custom_components.repsol_vivit",
+    types.ModuleType("custom_components.repsol_vivit"),
+)
+component_pkg.__path__ = [str(COMPONENT_DIR)]
+
+const = _load_module("custom_components.repsol_vivit.const", COMPONENT_DIR / "const.py")
+helpers = _load_module("custom_components.repsol_vivit.helpers", COMPONENT_DIR / "helpers.py")
+
+
+class HelperTests(unittest.TestCase):
+    """Tests for pure helpers."""
+
+    def test_build_device_name_for_electricity(self) -> None:
+        self.assertEqual(
+            helpers.build_device_name(2, "ELECTRICITY"),
+            "Contrato 2 (Electricidad)",
+        )
+
+    def test_build_device_name_without_index(self) -> None:
+        self.assertEqual(helpers.build_device_name(None, "GAS"), "Contrato (Gas)")
+
+    def test_update_interval_defaults_when_missing(self) -> None:
+        self.assertEqual(helpers.get_update_interval_minutes({}), 120)
+        self.assertEqual(helpers.get_update_interval(None), timedelta(minutes=120))
+
+    def test_update_interval_defaults_when_invalid(self) -> None:
+        self.assertEqual(
+            helpers.get_update_interval_minutes(
+                {const.CONF_UPDATE_INTERVAL_MINUTES: "not-a-number"}
+            ),
+            120,
+        )
+        self.assertEqual(
+            helpers.get_update_interval_minutes({const.CONF_UPDATE_INTERVAL_MINUTES: 5}),
+            120,
+        )
+
+    def test_update_interval_uses_valid_option(self) -> None:
+        self.assertEqual(
+            helpers.get_update_interval_minutes({const.CONF_UPDATE_INTERVAL_MINUTES: 180}),
+            180,
+        )
+        self.assertEqual(
+            helpers.get_update_interval({const.CONF_UPDATE_INTERVAL_MINUTES: 180}),
+            timedelta(minutes=180),
+        )
+
+    def test_virtual_battery_option_defaults_and_overrides(self) -> None:
+        self.assertTrue(helpers.is_virtual_battery_enabled({}))
+        self.assertFalse(
+            helpers.is_virtual_battery_enabled(
+                {const.CONF_ENABLE_VIRTUAL_BATTERY_SENSORS: False}
+            )
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

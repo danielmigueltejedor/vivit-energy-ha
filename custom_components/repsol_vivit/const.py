@@ -6,6 +6,14 @@ LOGGER = logging.getLogger(__name__)
 # Dominio del componente
 DOMAIN = "repsol_vivit"
 
+# Opciones de configuración
+CONF_UPDATE_INTERVAL_MINUTES = "update_interval_minutes"
+CONF_ENABLE_VIRTUAL_BATTERY_SENSORS = "enable_virtual_battery_sensors"
+DEFAULT_UPDATE_INTERVAL_MINUTES = 120
+MIN_UPDATE_INTERVAL_MINUTES = 30
+MAX_UPDATE_INTERVAL_MINUTES = 720
+DEFAULT_ENABLE_VIRTUAL_BATTERY_SENSORS = True
+
 # Endpoints base
 LOGIN_URL = "https://login.repsol.es/accounts.login"
 BASE_API_URL = "https://areacliente.repsol.es/api/proxy/"
@@ -18,7 +26,7 @@ NEXT_INVOICE_URL = f"{BASE_API_URL}houses/{{}}/products/{{}}/consumption/invoice
 VIRTUAL_BATTERY_HISTORY_URL = f"{BASE_API_URL}houses/{{}}/products/{{}}/virtual-battery/history"
 
 # Intervalo de actualización
-UPDATE_INTERVAL = timedelta(minutes=120)
+UPDATE_INTERVAL = timedelta(minutes=DEFAULT_UPDATE_INTERVAL_MINUTES)
 
 # --- Referers canónicos (nuevo) ---
 REFERER_PRODUCTS = "https://areacliente.repsol.es/productos-y-servicios"

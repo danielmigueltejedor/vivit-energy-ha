@@ -7,16 +7,23 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed
 
 from .api import RepsolLuzYGasAPI
-from .const import DOMAIN, LOGGER, UPDATE_INTERVAL
+from .const import DOMAIN, LOGGER
+from .helpers import build_device_name, get_update_interval
 
-PLATFORMS: list[str] = ["sensor"]
+PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """YAML setup (no usado)."""
     return True
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry after options or reauth changes."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -36,9 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     device_name = entry.data.get("device_name")
 
     if not device_name:
-        human_contract_type = "Electricidad" if contract_type == "ELECTRICITY" else "Gas"
-        prefix = f"Contrato {contract_index}" if contract_index else "Contrato"
-        device_name = f"{prefix} ({human_contract_type})"
+        device_name = build_device_name(contract_index, contract_type)
 
     store.update(
         {
@@ -63,6 +68,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return data
         except Exception as err:  # noqa: BLE001
             msg = (str(err) or "").lower()
+            if "login_failed" in msg:
+                raise ConfigEntryAuthFailed("Authentication failed") from err
             if store.get("last_data") is not None:
                 if "no_contracts" in msg or "no contracts" in msg:
                     LOGGER.warning(
@@ -80,10 +87,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         LOGGER,
         name=f"{DOMAIN}-coordinator",
         update_method=_update,
-        update_interval=UPDATE_INTERVAL,
+        update_interval=get_update_interval(entry.options),
     )
 
     store["coordinator"] = coordinator
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     try:
         await coordinator.async_config_entry_first_refresh()
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
