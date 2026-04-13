@@ -154,3 +154,11 @@ rm -rf /config/.vivit-tmp
 Este proyecto no tiene ninguna relación ni está respaldado por Repsol S.A.  
 El uso de esta integración implica aceptar que los datos obtenidos son **informativos y personales**.  
 *Repsol* y *Vivit* son marcas registradas de sus respectivos propietarios.
+
+---
+
+## 💰 Donaciones
+
+Si te gusta este proyecto y quieres apoyar su desarrollo, considera hacer una donación:
+
+[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/DanielMiguelTejedor)
