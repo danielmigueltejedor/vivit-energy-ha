@@ -24,8 +24,9 @@ from .const import (
 )
 
 REQ_TIMEOUT = 15
-REQUEST_RETRIES = 1
+REQUEST_RETRIES = 3
 RETRY_SLEEP_BASE = 1.0
+MAX_RELOGINS = 2
 
 
 class RepsolLuzYGasAPI:
@@ -98,17 +99,23 @@ class RepsolLuzYGasAPI:
         """GET con reintentos, re-login en 401/403 y backoff en 429/5xx."""
         last_exc: Exception | None = None
         current_headers = dict(headers)
+        relogins = 0
+        attempt = 0
 
-        for attempt in range(REQUEST_RETRIES + 1):
+        while attempt <= REQUEST_RETRIES:
             try:
                 async with asyncio.timeout(REQ_TIMEOUT):
                     async with self.session.get(
                         url, headers=current_headers, cookies=self.cookies
                     ) as response:
                         if response.status in (401, 403):
+                            if relogins >= MAX_RELOGINS:
+                                body = (await response.text())[:400]
+                                raise Exception(f"HTTP {response.status} {body}")
                             LOGGER.info("GET %s -> %s. Re-login y reintento.", url, response.status)
                             await self.async_login(reset_cookies=False)
                             current_headers = self._refresh_auth_headers(current_headers)
+                            relogins += 1
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):
@@ -120,7 +127,9 @@ class RepsolLuzYGasAPI:
                                 attempt + 1,
                                 body,
                             )
-                            await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                            if attempt < REQUEST_RETRIES:
+                                await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                            attempt += 1
                             continue
 
                         if response.status != 200:
@@ -130,7 +139,9 @@ class RepsolLuzYGasAPI:
                         return await response.json(content_type=None)
             except Exception as err:  # noqa: BLE001
                 last_exc = err
-                await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                if attempt < REQUEST_RETRIES:
+                    await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                attempt += 1
 
         raise last_exc or Exception("request_failed")
 

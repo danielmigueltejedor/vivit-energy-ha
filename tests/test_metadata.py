@@ -22,7 +22,7 @@ class MetadataTests(unittest.TestCase):
         readme = README_PATH.read_text(encoding="utf-8")
         changelog = CHANGELOG_PATH.read_text(encoding="utf-8")
 
-        self.assertEqual(version, "2.1.1")
+        self.assertEqual(version, "2.1.2")
         self.assertIn(f"version-{version}-blue.svg", readme)
         self.assertIn(f"**Versión:** {version}", readme)
         self.assertIsNotNone(re.search(rf"^## {re.escape(version)}\b", changelog, re.MULTILINE))

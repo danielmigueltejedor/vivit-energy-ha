@@ -1,4 +1,13 @@
 # CHANGELOG
+## 2.1.2 — 2026-04-17
+
+### Corregido
+- Errores transitorios `request_failed` al obtener datos de la API: retries subidos de 1 a 3 con backoff progresivo.
+- El re-login por 401/403 ya no consume presupuesto de reintentos, evitando fallos tras un único 5xx posterior.
+- Se elimina el sleep redundante tras el último intento para reducir latencia.
+
+---
+
 ## 2.1.1 — 2026-04-13
 
 ### Añadido
