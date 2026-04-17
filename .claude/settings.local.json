@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -m unittest tests.test_metadata -v)",
-      "Bash(python3 -m unittest tests.test_metadata -v)"
-    ]
-  }
-}
