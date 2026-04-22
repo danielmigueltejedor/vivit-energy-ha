@@ -112,8 +112,20 @@ class RepsolLuzYGasAPI:
                             if relogins >= MAX_RELOGINS:
                                 body = (await response.text())[:400]
                                 raise Exception(f"HTTP {response.status} {body}")
-                            LOGGER.info("GET %s -> %s. Re-login y reintento.", url, response.status)
-                            await self.async_login(reset_cookies=False)
+                            body = (await response.text())[:400]
+                            # Firma inválida/caducada -> resetear cookies Gigya.
+                            reset = (
+                                relogins >= 1
+                                or "signature" in body.lower()
+                                or "unauthorized" in body.lower()
+                            )
+                            LOGGER.info(
+                                "GET %s -> %s. Re-login (reset_cookies=%s) y reintento.",
+                                url,
+                                response.status,
+                                reset,
+                            )
+                            await self.async_login(reset_cookies=reset)
                             current_headers = self._refresh_auth_headers(current_headers)
                             relogins += 1
                             continue
@@ -147,7 +159,16 @@ class RepsolLuzYGasAPI:
 
     async def async_login(self, reset_cookies: bool = False) -> bool:
         """Login robusto con retry limpiando cookies si hay bloqueo 400006."""
+        prev_signature = self.signature
         async with self._login_lock:
+            # Otra task ya refrescó tokens mientras esperábamos el lock.
+            if (
+                not reset_cookies
+                and prev_signature is not None
+                and self.signature is not None
+                and self.signature != prev_signature
+            ):
+                return True
             if reset_cookies:
                 self._clear_cookies()
                 self._clear_auth()
@@ -233,6 +254,7 @@ class RepsolLuzYGasAPI:
         headers = self._auth_headers(REFERER_BILLING)
         base = {"amount": 0, "amountVariable": 0, "amountFixed": 0}
         last_exc: Exception | None = None
+        relogins = 0
 
         for attempt in range(REQUEST_RETRIES + 1):
             try:
@@ -247,13 +269,21 @@ class RepsolLuzYGasAPI:
                             }
 
                         if response.status in (401, 403):
+                            body = (await response.text())[:400]
+                            reset = (
+                                relogins >= 1
+                                or "signature" in body.lower()
+                                or "unauthorized" in body.lower()
+                            )
                             LOGGER.info(
-                                "Invoice estimate %s -> %s. Re-login y reintento.",
+                                "Invoice estimate %s -> %s. Re-login (reset_cookies=%s) y reintento.",
                                 url,
                                 response.status,
+                                reset,
                             )
-                            await self.async_login(reset_cookies=False)
+                            await self.async_login(reset_cookies=reset)
                             headers = self._auth_headers(REFERER_BILLING)
+                            relogins += 1
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):
@@ -309,6 +339,7 @@ class RepsolLuzYGasAPI:
         url = VIRTUAL_BATTERY_HISTORY_URL.format(house_id, contract_id)
         headers = self._auth_headers()
         last_exc: Exception | None = None
+        relogins = 0
 
         for attempt in range(REQUEST_RETRIES + 1):
             try:
@@ -318,13 +349,21 @@ class RepsolLuzYGasAPI:
                             return await response.json(content_type=None)
 
                         if response.status in (401, 403):
+                            body = (await response.text())[:400]
+                            reset = (
+                                relogins >= 1
+                                or "signature" in body.lower()
+                                or "unauthorized" in body.lower()
+                            )
                             LOGGER.info(
-                                "VB history %s -> %s. Re-login y reintento.",
+                                "VB history %s -> %s. Re-login (reset_cookies=%s) y reintento.",
                                 url,
                                 response.status,
+                                reset,
                             )
-                            await self.async_login(reset_cookies=False)
+                            await self.async_login(reset_cookies=reset)
                             headers = self._auth_headers()
+                            relogins += 1
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):

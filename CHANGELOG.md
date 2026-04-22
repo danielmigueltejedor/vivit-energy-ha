@@ -1,4 +1,15 @@
 # CHANGELOG
+## 2.1.4 — 2026-04-22
+
+### Corregido
+- Error persistente `HTTP 401 UnauthorizedException: The user signature provided is not valid`: ante firma Gigya caducada, el re-login ahora limpia las cookies de sesión en lugar de reutilizarlas, evitando que la nueva firma se siga rechazando.
+- Re-login concurrente redundante cuando varias peticiones fallan a la vez: si otra tarea ya refrescó los tokens mientras se esperaba el lock, se omite un login duplicado.
+
+### Cambiado
+- La detección de firma inválida (`signature`/`unauthorized` en el cuerpo 401) fuerza reseteo de cookies en el primer reintento; los demás 401/403 conservan las cookies en el primer intento y escalan al segundo.
+
+---
+
 ## 2.1.2 — 2026-04-17
 
 ### Corregido
