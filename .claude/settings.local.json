@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -m unittest tests.test_metadata -v)",
-      "Bash(python3 -m unittest tests.test_metadata -v)",
-      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/danielmigueltejedor/VSCode/vivit-energy-ha/custom_components/repsol_vivit/api.py'\\).read\\(\\)\\)\")"
-    ]
-  }
-}
