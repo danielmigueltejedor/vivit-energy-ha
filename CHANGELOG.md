@@ -1,4 +1,11 @@
 # CHANGELOG
+## 2.1.5 — 2026-04-22
+
+### Corregido
+- Aviso de Home Assistant `Detected that custom integration 'repsol_vivit' closes the Home Assistant aiohttp session`: la integración ya no cierra la sesión compartida devuelta por `async_create_clientsession` ni en `async_unload_entry` ni en el config flow.
+
+---
+
 ## 2.1.4 — 2026-04-22
 
 ### Corregido

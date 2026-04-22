@@ -39,20 +39,17 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         session = async_create_clientsession(self.hass)
         client = RepsolLuzYGasAPI(session=session, username=username, password=password)
 
-        try:
-            await client.async_login()
-            data = await client.async_get_contracts()
-            return [
-                {
-                    "code": contract.get("contract_id"),
-                    "cups": contract.get("cups"),
-                    "type": contract.get("contractType"),
-                    "house_id": contract.get("house_id"),
-                }
-                for contract in (data.get("information") or [])
-            ]
-        finally:
-            await session.close()
+        await client.async_login()
+        data = await client.async_get_contracts()
+        return [
+            {
+                "code": contract.get("contract_id"),
+                "cups": contract.get("cups"),
+                "type": contract.get("contractType"),
+                "house_id": contract.get("house_id"),
+            }
+            for contract in (data.get("information") or [])
+        ]
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         """Handle the initial config flow step."""

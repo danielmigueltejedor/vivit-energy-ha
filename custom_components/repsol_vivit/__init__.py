@@ -48,7 +48,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store.update(
         {
             "api": client,
-            "session": session,
             "last_data": None,
             "contract_id": entry.data.get("contract_id"),
             "contract_type": contract_type,
@@ -97,7 +96,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except Exception:
         hass.data[DOMAIN].pop(entry.entry_id, None)
-        await session.close()
         raise
 
     return True
@@ -107,9 +105,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Descarga la entrada."""
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if ok:
-        store = hass.data[DOMAIN].pop(entry.entry_id, None)
-        if store and (session := store.get("session")):
-            await session.close()
+        hass.data[DOMAIN].pop(entry.entry_id, None)
         if not hass.data[DOMAIN]:
             hass.data.pop(DOMAIN, None)
     return ok
