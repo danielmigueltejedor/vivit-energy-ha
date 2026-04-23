@@ -1,4 +1,13 @@
 # CHANGELOG
+## 2.1.10 — 2026-04-24
+
+### Cambiado
+- Tras cada `accounts.login` se hace un warmup GET al portal `areacliente.repsol.es` para que el BFF emita su propia cookie de sesión. Intento de mitigar el 401 persistente `The user signature provided is not valid`, que aparece aunque la firma de Gigya se acabe de generar.
+- `_bootstrap_gigya` parte de cookies vacías antes de capturar las nuevas (evita arrastrar valores caducados de `COOKIES_CONST`).
+- Nuevo log `INFO` tras cada login correcto con UID (8 chars), `signatureTimestamp` y longitud de la firma para diagnosticar rechazos posteriores del BFF.
+
+---
+
 ## 2.1.9 — 2026-04-23
 
 ### Corregido

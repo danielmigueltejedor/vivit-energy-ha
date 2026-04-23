@@ -84,6 +84,8 @@ class RepsolLuzYGasAPI:
         bootstrap (gmid/ucid/gig_bootstrap_*) están caducadas o no coinciden
         con la APIKey, devolviendo HTTP 200 + errorCode 400006.
         """
+        # Partimos de cookies vacías para no arrastrar las hardcoded (caducadas).
+        self.cookies = {}
         params = {
             "apiKey": LOGIN_DATA["APIKey"],
             "format": "json",
@@ -106,6 +108,27 @@ class RepsolLuzYGasAPI:
                     await response.read()
         except Exception as err:  # noqa: BLE001
             LOGGER.debug("Bootstrap Gigya falló (%s). Continuamos con login directo.", err)
+
+    async def _warmup_areacliente(self) -> None:
+        """Visita el portal areacliente tras el login para capturar su cookie de sesión.
+
+        Algunos 401 `The user signature provided is not valid` desaparecen si el
+        backend ha podido emitir su propia cookie de sesión antes del primer GET
+        a la API; GET al portal deja que el BFF set-cookie-ee lo que necesite.
+        """
+        try:
+            async with asyncio.timeout(REQ_TIMEOUT):
+                async with self.session.get(
+                    REFERER_PRODUCTS,
+                    headers=dict(COMMON_HEADERS),
+                    cookies=self.cookies,
+                    allow_redirects=True,
+                ) as response:
+                    for key, morsel in response.cookies.items():
+                        self.cookies[key] = morsel.value
+                    await response.read()
+        except Exception as err:  # noqa: BLE001
+            LOGGER.debug("Warmup areacliente falló (%s).", err)
 
     def _refresh_auth_headers(self, headers: dict[str, str]) -> dict[str, str]:
         """Actualiza una copia de headers con las credenciales actuales."""
@@ -315,6 +338,13 @@ class RepsolLuzYGasAPI:
                             # Login OK: limpiamos cooldown de error.
                             self._last_login_err = None
                             self._last_login_fail_at = 0.0
+                            LOGGER.info(
+                                "Login Gigya OK uid=%s... ts=%s sig_len=%s",
+                                (self.uid or "")[:8],
+                                self.timestamp,
+                                len(self.signature or ""),
+                            )
+                            await self._warmup_areacliente()
                             return True
 
                 raise Exception("login_failed")
