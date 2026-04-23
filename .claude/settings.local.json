@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python -m unittest discover tests)",
       "Bash(python3 -m unittest discover tests)",
-      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/danielmigueltejedor/VSCode/vivit-energy-ha/custom_components/repsol_vivit/api.py'\\).read\\(\\)\\); ast.parse\\(open\\('/Users/danielmigueltejedor/VSCode/vivit-energy-ha/custom_components/repsol_vivit/__init__.py'\\).read\\(\\)\\); print\\('ok'\\)\")"
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/danielmigueltejedor/VSCode/vivit-energy-ha/custom_components/repsol_vivit/api.py'\\).read\\(\\)\\); ast.parse\\(open\\('/Users/danielmigueltejedor/VSCode/vivit-energy-ha/custom_components/repsol_vivit/__init__.py'\\).read\\(\\)\\); print\\('ok'\\)\")",
+      "Bash(python3 -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in ['/Users/danielmigueltejedor/VSCode/vivit-energy-ha/custom_components/repsol_vivit/api.py', '/Users/danielmigueltejedor/VSCode/vivit-energy-ha/custom_components/repsol_vivit/__init__.py']]; print\\('syntax ok'\\)\")"
     ]
   }
 }

@@ -1,4 +1,17 @@
 # CHANGELOG
+## 2.1.7 — 2026-04-23
+
+### Corregido
+- Reautenticación forzada que dejaba las entidades no disponibles pese a que las credenciales eran correctas. Gigya devuelve HTTP 200 con `errorCode` ≠ 0 (p.ej. `400006` bloqueo de seguridad, `400125`, `500001`) y sin `userInfo`; el cliente interpretaba ese caso como credenciales inválidas (`login_failed_tokens`) y disparaba `ConfigEntryAuthFailed`.
+- Ahora se inspecciona el `errorCode` del payload Gigya:
+  - `403042` (loginID/password incorrectos) → `login_failed_credentials`, única ruta que fuerza reauth.
+  - `400006 / 400125 / 403047 / 500001` y similares → `login_failed_blocked`, transitorios: se limpian cookies, se reintenta y, si persiste, se sirve la última caché sin tocar las entidades.
+  - Cualquier otro `errorCode` → `login_failed_gigya`, tratado como transitorio.
+- `login_failed_tokens` (200 sin tokens y sin `errorCode` reconocido) deja de forzar reauth: se sirve caché y se loguea el payload (`errorCode`, fragmento del body) para diagnosticar sin perder entidades.
+- Se añade log de advertencia con el `errorCode` y mensaje de Gigya cada vez que el login no devuelve tokens, para poder identificar futuros códigos transitorios.
+
+---
+
 ## 2.1.6 — 2026-04-23
 
 ### Corregido

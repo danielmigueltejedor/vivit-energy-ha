@@ -67,10 +67,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return data
         except Exception as err:  # noqa: BLE001
             msg = (str(err) or "").lower()
-            # Sólo pedir reauth si Gigya valida la petición pero no entrega tokens
-            # (credenciales realmente inválidas). Cualquier otro login_failed_* es
-            # transitorio (bloqueo de seguridad, 5xx, parse) y NO debe forzar reauth.
-            if "login_failed_tokens" in msg:
+            # Sólo pedir reauth si Gigya confirma credenciales inválidas (errorCode 403042).
+            # El resto de login_failed_* (bloqueo de seguridad, 5xx, parse, timeouts,
+            # tokens ausentes sin errorCode) es transitorio y NO debe forzar reauth —
+            # perdemos las entidades del usuario por algo que se recupera solo.
+            if "login_failed_credentials" in msg:
                 raise ConfigEntryAuthFailed("Authentication failed") from err
             if store.get("last_data") is not None:
                 if "no_contracts" in msg or "no contracts" in msg:

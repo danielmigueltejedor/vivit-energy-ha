@@ -186,11 +186,16 @@ class RepsolLuzYGasAPI:
                         if response.status != 200:
                             if "security issues" in text or "400006" in text:
                                 LOGGER.warning(
-                                    "Login bloqueado por seguridad. Reintentamos con cookies nuevas."
+                                    "Login bloqueado por seguridad (HTTP %s). Reintentamos con cookies nuevas.",
+                                    response.status,
                                 )
                                 self._clear_cookies()
                                 self._clear_auth()
-                                continue
+                                if attempt == 0:
+                                    continue
+                                raise Exception(
+                                    f"login_failed_blocked {response.status} {text[:200]}"
+                                )
                             raise Exception(f"login_failed_http {response.status} {text[:300]}")
 
                         try:
@@ -198,12 +203,56 @@ class RepsolLuzYGasAPI:
                         except Exception as err:  # noqa: BLE001
                             raise Exception(f"login_failed_parse {text[:300]}") from err
 
+                        # Gigya devuelve HTTP 200 incluso en errores; hay que inspeccionar errorCode.
+                        error_code = payload.get("errorCode", 0) or 0
+                        if error_code:
+                            err_msg = (
+                                payload.get("errorMessage")
+                                or payload.get("statusReason")
+                                or ""
+                            )
+                            # 403042: loginID/password incorrectos (reauth real).
+                            if error_code == 403042:
+                                raise Exception(
+                                    f"login_failed_credentials {error_code} {err_msg}"
+                                )
+                            # 400006 y similares: bloqueo temporal de seguridad.
+                            if error_code in (400006, 400125, 403047, 500001):
+                                LOGGER.warning(
+                                    "Gigya errorCode=%s (%s). Reintento con cookies nuevas.",
+                                    error_code,
+                                    err_msg,
+                                )
+                                self._clear_cookies()
+                                self._clear_auth()
+                                if attempt == 0:
+                                    continue
+                                raise Exception(
+                                    f"login_failed_blocked {error_code} {err_msg}"
+                                )
+                            # Resto: transitorio. Reintento una vez.
+                            LOGGER.warning(
+                                "Gigya errorCode=%s (%s). Reintento.",
+                                error_code,
+                                err_msg,
+                            )
+                            if attempt == 0:
+                                continue
+                            raise Exception(
+                                f"login_failed_gigya {error_code} {err_msg}"
+                            )
+
                         user_info = payload.get("userInfo") or {}
                         self.uid = user_info.get("UID")
                         self.signature = user_info.get("UIDSignature")
                         self.timestamp = user_info.get("signatureTimestamp")
 
                         if not (self.uid and self.signature and self.timestamp):
+                            LOGGER.warning(
+                                "Login Gigya 200 sin tokens. errorCode=%s payload=%s",
+                                payload.get("errorCode"),
+                                str(payload)[:400],
+                            )
                             self._clear_cookies()
                             self._clear_auth()
                             if attempt == 0:
