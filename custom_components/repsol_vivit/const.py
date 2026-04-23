@@ -16,6 +16,7 @@ DEFAULT_ENABLE_VIRTUAL_BATTERY_SENSORS = True
 
 # Endpoints base
 LOGIN_URL = "https://login.repsol.es/accounts.login"
+BOOTSTRAP_URL = "https://login.repsol.es/accounts.webSdkBootstrap"
 BASE_API_URL = "https://areacliente.repsol.es/api/proxy/"
 
 CONTRACTS_URL = f"{BASE_API_URL}houses"

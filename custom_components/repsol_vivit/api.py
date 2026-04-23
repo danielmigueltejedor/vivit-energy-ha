@@ -8,6 +8,8 @@ from typing import Any
 import aiohttp
 
 from .const import (
+    BOOTSTRAP_URL,
+    COMMON_HEADERS,
     CONTRACTS_HEADERS,
     CONTRACTS_URL,
     COOKIES_CONST,
@@ -30,8 +32,10 @@ RETRY_SLEEP_BASE = 1.0
 MAX_RELOGINS = 2
 COOKIE_DOMAINS = ("login.repsol.es", "areacliente.repsol.es", "repsol.es")
 # Si el último login falló hace menos de este tiempo, no volvemos a golpear Gigya
-# (evita 30+ reintentos concurrentes ante un bloqueo temporal / rate limit).
-LOGIN_FAILURE_COOLDOWN = 60.0
+# (evita reintentos concurrentes / tras restart ante un bloqueo temporal).
+LOGIN_FAILURE_COOLDOWN = 300.0
+# Cooldown extendido cuando Gigya devuelve rate-limit explícito.
+LOGIN_RATE_LIMIT_COOLDOWN = 900.0
 
 
 class RepsolLuzYGasAPI:
@@ -72,6 +76,36 @@ class RepsolLuzYGasAPI:
                 jar.clear_domain(domain)
             except Exception:  # noqa: BLE001
                 pass
+
+    async def _bootstrap_gigya(self) -> None:
+        """Obtiene un gmid fresco de Gigya antes de accounts.login.
+
+        Gigya rechaza `accounts.login` con targetEnv=jssdk si las cookies
+        bootstrap (gmid/ucid/gig_bootstrap_*) están caducadas o no coinciden
+        con la APIKey, devolviendo HTTP 200 + errorCode 400006.
+        """
+        params = {
+            "apiKey": LOGIN_DATA["APIKey"],
+            "format": "json",
+            "pageURL": "https://areacliente.repsol.es/",
+            "sdk": "js_latest",
+        }
+        try:
+            async with asyncio.timeout(REQ_TIMEOUT):
+                async with self.session.get(
+                    BOOTSTRAP_URL,
+                    params=params,
+                    headers=dict(COMMON_HEADERS),
+                    cookies={},
+                ) as response:
+                    # Gigya manda Set-Cookie (gmid, ucid, hasGmid, gig_bootstrap_*).
+                    # aiohttp los guarda en el cookie_jar de la sesión; copiamos además
+                    # a self.cookies para pasarlos explícitamente en el POST.
+                    for key, morsel in response.cookies.items():
+                        self.cookies[key] = morsel.value
+                    await response.read()
+        except Exception as err:  # noqa: BLE001
+            LOGGER.debug("Bootstrap Gigya falló (%s). Continuamos con login directo.", err)
 
     def _refresh_auth_headers(self, headers: dict[str, str]) -> dict[str, str]:
         """Actualiza una copia de headers con las credenciales actuales."""
@@ -175,11 +209,19 @@ class RepsolLuzYGasAPI:
             # cuando Gigya está devolviendo 400006 / rate limit.
             if self._last_login_err is not None:
                 since_fail = time.monotonic() - self._last_login_fail_at
-                if since_fail < LOGIN_FAILURE_COOLDOWN:
+                cooldown = (
+                    LOGIN_RATE_LIMIT_COOLDOWN
+                    if "403048" in self._last_login_err or "rate limit" in self._last_login_err.lower()
+                    else LOGIN_FAILURE_COOLDOWN
+                )
+                if since_fail < cooldown:
                     raise Exception(self._last_login_err)
             if reset_cookies:
                 self._clear_cookies()
                 self._clear_auth()
+
+            # Fresh gmid/ucid cookies via accounts.webSdkBootstrap para evitar 400006.
+            await self._bootstrap_gigya()
 
             data = dict(LOGIN_DATA)
             data.update({"loginID": self.username, "password": self.password})
@@ -201,6 +243,7 @@ class RepsolLuzYGasAPI:
                                     self._clear_cookies()
                                     self._clear_auth()
                                     if attempt == 0:
+                                        await self._bootstrap_gigya()
                                         continue
                                     raise Exception(
                                         f"login_failed_blocked {response.status} {text[:200]}"
@@ -235,6 +278,7 @@ class RepsolLuzYGasAPI:
                                     self._clear_cookies()
                                     self._clear_auth()
                                     if attempt == 0:
+                                        await self._bootstrap_gigya()
                                         continue
                                     raise Exception(
                                         f"login_failed_blocked {error_code} {err_msg}"

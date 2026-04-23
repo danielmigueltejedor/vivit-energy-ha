@@ -1,4 +1,16 @@
 # CHANGELOG
+## 2.1.9 — 2026-04-23
+
+### Corregido
+- Causa real del `Gigya errorCode=400006 (Invalid parameter value)`: el login con `targetEnv=jssdk` necesita cookies bootstrap (`gmid`, `ucid`, `hasGmid`, `gig_bootstrap_*`) emitidas por Gigya para la APIKey activa. Las cookies hard-coded en `COOKIES_CONST` estaban caducadas, por lo que cada login se rechazaba y dejaba a la integración sirviendo sólo caché.
+- Antes de cada `accounts.login` se llama a `accounts.webSdkBootstrap` para obtener un `gmid` fresco. Si el login sigue fallando con 400006, se vuelve a bootstrappear antes del reintento.
+
+### Cambiado
+- `LOGIN_FAILURE_COOLDOWN` subido de 60 s a 300 s. Nuevo `LOGIN_RATE_LIMIT_COOLDOWN` de 900 s cuando Gigya devuelve `403048 Api rate limit exceeded`, para dar margen a que se relaje el bloqueo.
+- Si hay fallo reciente dentro del cooldown, el siguiente `async_login` re-lanza el error cacheado sin tocar Gigya — aunque lo invoquen varios coordinators o reloads seguidos.
+
+---
+
 ## 2.1.8 — 2026-04-23
 
 ### Corregido
