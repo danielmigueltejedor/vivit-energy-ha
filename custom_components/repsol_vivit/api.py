@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 import aiohttp
@@ -28,6 +29,9 @@ REQUEST_RETRIES = 3
 RETRY_SLEEP_BASE = 1.0
 MAX_RELOGINS = 2
 COOKIE_DOMAINS = ("login.repsol.es", "areacliente.repsol.es", "repsol.es")
+# Si el último login falló hace menos de este tiempo, no volvemos a golpear Gigya
+# (evita 30+ reintentos concurrentes ante un bloqueo temporal / rate limit).
+LOGIN_FAILURE_COOLDOWN = 60.0
 
 
 class RepsolLuzYGasAPI:
@@ -50,6 +54,8 @@ class RepsolLuzYGasAPI:
         self.timestamp: str | None = None
         self.cookies: dict[str, str] = dict(COOKIES_CONST) if COOKIES_CONST else {}
         self._login_lock = asyncio.Lock()
+        self._last_login_fail_at: float = 0.0
+        self._last_login_err: str | None = None
 
     def _clear_auth(self) -> None:
         """Borra tokens en memoria para forzar relogin limpio."""
@@ -162,13 +168,15 @@ class RepsolLuzYGasAPI:
         prev_signature = self.signature
         async with self._login_lock:
             # Otra task ya refrescó tokens mientras esperábamos el lock.
-            if (
-                not reset_cookies
-                and prev_signature is not None
-                and self.signature is not None
-                and self.signature != prev_signature
-            ):
+            if self.signature is not None and self.signature != prev_signature:
                 return True
+            # Cooldown: si hace <LOGIN_FAILURE_COOLDOWN que falló, no insistimos.
+            # Evita que 5-10 peticiones concurrentes disparen 5-10 logins seguidos
+            # cuando Gigya está devolviendo 400006 / rate limit.
+            if self._last_login_err is not None:
+                since_fail = time.monotonic() - self._last_login_fail_at
+                if since_fail < LOGIN_FAILURE_COOLDOWN:
+                    raise Exception(self._last_login_err)
             if reset_cookies:
                 self._clear_cookies()
                 self._clear_auth()
@@ -177,91 +185,99 @@ class RepsolLuzYGasAPI:
             data.update({"loginID": self.username, "password": self.password})
             headers = dict(LOGIN_HEADERS)
 
-            for attempt in range(2):
-                async with asyncio.timeout(REQ_TIMEOUT):
-                    async with self.session.post(
-                        LOGIN_URL, headers=headers, cookies=self.cookies, data=data
-                    ) as response:
-                        text = await response.text()
-                        if response.status != 200:
-                            if "security issues" in text or "400006" in text:
-                                LOGGER.warning(
-                                    "Login bloqueado por seguridad (HTTP %s). Reintentamos con cookies nuevas.",
-                                    response.status,
-                                )
-                                self._clear_cookies()
-                                self._clear_auth()
-                                if attempt == 0:
-                                    continue
-                                raise Exception(
-                                    f"login_failed_blocked {response.status} {text[:200]}"
-                                )
-                            raise Exception(f"login_failed_http {response.status} {text[:300]}")
+            try:
+                for attempt in range(2):
+                    async with asyncio.timeout(REQ_TIMEOUT):
+                        async with self.session.post(
+                            LOGIN_URL, headers=headers, cookies=self.cookies, data=data
+                        ) as response:
+                            text = await response.text()
+                            if response.status != 200:
+                                if "security issues" in text or "400006" in text:
+                                    LOGGER.warning(
+                                        "Login bloqueado por seguridad (HTTP %s). Reintentamos con cookies nuevas.",
+                                        response.status,
+                                    )
+                                    self._clear_cookies()
+                                    self._clear_auth()
+                                    if attempt == 0:
+                                        continue
+                                    raise Exception(
+                                        f"login_failed_blocked {response.status} {text[:200]}"
+                                    )
+                                raise Exception(f"login_failed_http {response.status} {text[:300]}")
 
-                        try:
-                            payload = await response.json(content_type=None)
-                        except Exception as err:  # noqa: BLE001
-                            raise Exception(f"login_failed_parse {text[:300]}") from err
+                            try:
+                                payload = await response.json(content_type=None)
+                            except Exception as err:  # noqa: BLE001
+                                raise Exception(f"login_failed_parse {text[:300]}") from err
 
-                        # Gigya devuelve HTTP 200 incluso en errores; hay que inspeccionar errorCode.
-                        error_code = payload.get("errorCode", 0) or 0
-                        if error_code:
-                            err_msg = (
-                                payload.get("errorMessage")
-                                or payload.get("statusReason")
-                                or ""
-                            )
-                            # 403042: loginID/password incorrectos (reauth real).
-                            if error_code == 403042:
-                                raise Exception(
-                                    f"login_failed_credentials {error_code} {err_msg}"
+                            # Gigya devuelve HTTP 200 incluso en errores; hay que inspeccionar errorCode.
+                            error_code = payload.get("errorCode", 0) or 0
+                            if error_code:
+                                err_msg = (
+                                    payload.get("errorMessage")
+                                    or payload.get("statusReason")
+                                    or ""
                                 )
-                            # 400006 y similares: bloqueo temporal de seguridad.
-                            if error_code in (400006, 400125, 403047, 500001):
+                                # 403042: loginID/password incorrectos (reauth real).
+                                if error_code == 403042:
+                                    raise Exception(
+                                        f"login_failed_credentials {error_code} {err_msg}"
+                                    )
+                                # 400006 y similares: bloqueo temporal de seguridad.
+                                if error_code in (400006, 400125, 403047, 500001):
+                                    LOGGER.warning(
+                                        "Gigya errorCode=%s (%s). Reintento con cookies nuevas.",
+                                        error_code,
+                                        err_msg,
+                                    )
+                                    self._clear_cookies()
+                                    self._clear_auth()
+                                    if attempt == 0:
+                                        continue
+                                    raise Exception(
+                                        f"login_failed_blocked {error_code} {err_msg}"
+                                    )
+                                # Resto: transitorio. Reintento una vez.
                                 LOGGER.warning(
-                                    "Gigya errorCode=%s (%s). Reintento con cookies nuevas.",
+                                    "Gigya errorCode=%s (%s). Reintento.",
                                     error_code,
                                     err_msg,
                                 )
+                                if attempt == 0:
+                                    continue
+                                raise Exception(
+                                    f"login_failed_gigya {error_code} {err_msg}"
+                                )
+
+                            user_info = payload.get("userInfo") or {}
+                            self.uid = user_info.get("UID")
+                            self.signature = user_info.get("UIDSignature")
+                            self.timestamp = user_info.get("signatureTimestamp")
+
+                            if not (self.uid and self.signature and self.timestamp):
+                                LOGGER.warning(
+                                    "Login Gigya 200 sin tokens. errorCode=%s payload=%s",
+                                    payload.get("errorCode"),
+                                    str(payload)[:400],
+                                )
                                 self._clear_cookies()
                                 self._clear_auth()
                                 if attempt == 0:
                                     continue
-                                raise Exception(
-                                    f"login_failed_blocked {error_code} {err_msg}"
-                                )
-                            # Resto: transitorio. Reintento una vez.
-                            LOGGER.warning(
-                                "Gigya errorCode=%s (%s). Reintento.",
-                                error_code,
-                                err_msg,
-                            )
-                            if attempt == 0:
-                                continue
-                            raise Exception(
-                                f"login_failed_gigya {error_code} {err_msg}"
-                            )
+                                raise Exception("login_failed_tokens")
 
-                        user_info = payload.get("userInfo") or {}
-                        self.uid = user_info.get("UID")
-                        self.signature = user_info.get("UIDSignature")
-                        self.timestamp = user_info.get("signatureTimestamp")
+                            # Login OK: limpiamos cooldown de error.
+                            self._last_login_err = None
+                            self._last_login_fail_at = 0.0
+                            return True
 
-                        if not (self.uid and self.signature and self.timestamp):
-                            LOGGER.warning(
-                                "Login Gigya 200 sin tokens. errorCode=%s payload=%s",
-                                payload.get("errorCode"),
-                                str(payload)[:400],
-                            )
-                            self._clear_cookies()
-                            self._clear_auth()
-                            if attempt == 0:
-                                continue
-                            raise Exception("login_failed_tokens")
-
-                        return True
-
-        raise Exception("login_failed")
+                raise Exception("login_failed")
+            except Exception as err:
+                self._last_login_err = str(err) or "login_failed"
+                self._last_login_fail_at = time.monotonic()
+                raise
 
     async def async_get_contracts(self) -> dict[str, list[dict[str, Any]]]:
         """Listado de contratos con re-login si la API devuelve 0 transitoriamente."""

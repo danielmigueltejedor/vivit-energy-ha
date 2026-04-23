@@ -1,4 +1,16 @@
 # CHANGELOG
+## 2.1.8 — 2026-04-23
+
+### Corregido
+- Cascada de 30+ logs `Gigya errorCode=400006` / `403048 Api rate limit exceeded` en unos pocos segundos: cada una de las peticiones concurrentes de `fetch_all_data` (contratos, facturas, costes, invoice estimate, virtual battery) disparaba su propio `async_login` ante el 401 y reventaba el rate limit de Gigya, retroalimentando el bloqueo.
+
+### Cambiado
+- `async_login` deduplica re-logins concurrentes incluso con `reset_cookies=True`: si otra task refrescó la firma mientras estábamos esperando el lock, se reutiliza y se sale.
+- Nuevo cooldown `LOGIN_FAILURE_COOLDOWN` (60 s): si el último login falló hace menos de un minuto, los siguientes intentos re-lanzan el error cacheado sin golpear Gigya, permitiendo que el rate limit se recupere.
+- Tras un login correcto el cooldown se limpia; tras cualquier fallo se registra `errno` y timestamp para que las peticiones en paralelo del mismo ciclo no lo vuelvan a intentar.
+
+---
+
 ## 2.1.7 — 2026-04-23
 
 ### Corregido
