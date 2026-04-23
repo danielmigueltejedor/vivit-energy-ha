@@ -1,4 +1,15 @@
 # CHANGELOG
+## 2.1.6 — 2026-04-23
+
+### Corregido
+- Reautenticación forzada cada ~2 horas tras 2.1.4: el reseteo de cookies usaba `session.cookie_jar.clear()` sobre la sesión compartida de Home Assistant, lo que disparaba el bloqueo de seguridad de Gigya (`400006`) y hacía que el siguiente login fallara con `login_failed_http`, escalando a `ConfigEntryAuthFailed`.
+- El reseteo de cookies ahora es específico por dominio (`login.repsol.es`, `areacliente.repsol.es`, `repsol.es`) mediante `cookie_jar.clear_domain`, sin tocar cookies de otras integraciones.
+- Se elimina la heurística que reseteaba cookies en el primer 401 cuando el cuerpo contenía `signature`/`unauthorized`: la caducidad natural de la firma Gigya produce ese texto y forzaba el reseteo en cada ciclo de actualización.
+- El primer 401/403 sólo hace re-login (sin tocar cookies). Sólo el segundo intento, si sigue fallando, escala a reseteo de cookies Gigya.
+- El coordinator sólo lanza `ConfigEntryAuthFailed` si el login devuelve 200 sin tokens (`login_failed_tokens`, credenciales realmente inválidas). El resto de `login_failed_*` (bloqueo de seguridad, 5xx, parse) se tratan como fallo transitorio y no obligan al usuario a reautenticarse.
+
+---
+
 ## 2.1.5 — 2026-04-22
 
 ### Corregido

@@ -27,6 +27,7 @@ REQ_TIMEOUT = 15
 REQUEST_RETRIES = 3
 RETRY_SLEEP_BASE = 1.0
 MAX_RELOGINS = 2
+COOKIE_DOMAINS = ("login.repsol.es", "areacliente.repsol.es", "repsol.es")
 
 
 class RepsolLuzYGasAPI:
@@ -57,9 +58,14 @@ class RepsolLuzYGasAPI:
         self.timestamp = None
 
     def _clear_cookies(self) -> None:
-        """Limpia cookies explícitas y las acumuladas por la sesión."""
+        """Limpia cookies explícitas y las del dominio Repsol en la sesión compartida."""
         self.cookies = {}
-        self.session.cookie_jar.clear()
+        jar = self.session.cookie_jar
+        for domain in COOKIE_DOMAINS:
+            try:
+                jar.clear_domain(domain)
+            except Exception:  # noqa: BLE001
+                pass
 
     def _refresh_auth_headers(self, headers: dict[str, str]) -> dict[str, str]:
         """Actualiza una copia de headers con las credenciales actuales."""
@@ -112,13 +118,7 @@ class RepsolLuzYGasAPI:
                             if relogins >= MAX_RELOGINS:
                                 body = (await response.text())[:400]
                                 raise Exception(f"HTTP {response.status} {body}")
-                            body = (await response.text())[:400]
-                            # Firma inválida/caducada -> resetear cookies Gigya.
-                            reset = (
-                                relogins >= 1
-                                or "signature" in body.lower()
-                                or "unauthorized" in body.lower()
-                            )
+                            reset = relogins >= 1
                             LOGGER.info(
                                 "GET %s -> %s. Re-login (reset_cookies=%s) y reintento.",
                                 url,
@@ -269,12 +269,7 @@ class RepsolLuzYGasAPI:
                             }
 
                         if response.status in (401, 403):
-                            body = (await response.text())[:400]
-                            reset = (
-                                relogins >= 1
-                                or "signature" in body.lower()
-                                or "unauthorized" in body.lower()
-                            )
+                            reset = relogins >= 1
                             LOGGER.info(
                                 "Invoice estimate %s -> %s. Re-login (reset_cookies=%s) y reintento.",
                                 url,
@@ -349,12 +344,7 @@ class RepsolLuzYGasAPI:
                             return await response.json(content_type=None)
 
                         if response.status in (401, 403):
-                            body = (await response.text())[:400]
-                            reset = (
-                                relogins >= 1
-                                or "signature" in body.lower()
-                                or "unauthorized" in body.lower()
-                            )
+                            reset = relogins >= 1
                             LOGGER.info(
                                 "VB history %s -> %s. Re-login (reset_cookies=%s) y reintento.",
                                 url,

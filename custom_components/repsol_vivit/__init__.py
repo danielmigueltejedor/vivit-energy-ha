@@ -67,7 +67,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return data
         except Exception as err:  # noqa: BLE001
             msg = (str(err) or "").lower()
-            if "login_failed" in msg:
+            # Sólo pedir reauth si Gigya valida la petición pero no entrega tokens
+            # (credenciales realmente inválidas). Cualquier otro login_failed_* es
+            # transitorio (bloqueo de seguridad, 5xx, parse) y NO debe forzar reauth.
+            if "login_failed_tokens" in msg:
                 raise ConfigEntryAuthFailed("Authentication failed") from err
             if store.get("last_data") is not None:
                 if "no_contracts" in msg or "no contracts" in msg:
