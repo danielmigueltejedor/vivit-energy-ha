@@ -1,12 +1,14 @@
 {
   "domain": "repsol_vivit",
   "name": "Vivit Energy Portal",
-  "version": "2.1.10",
+  "codeowners": [
+    "@danielmigueltejedor"
+  ],
   "config_flow": true,
-  "iot_class": "cloud_polling",
   "documentation": "https://github.com/danielmigueltejedor/vivit-energy-ha",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/danielmigueltejedor/vivit-energy-ha/issues",
-  "codeowners": ["@danielmigueltejedor"],
   "requirements": [],
-  "integration_type": "service"
+  "version": "2.1.10"
 }
