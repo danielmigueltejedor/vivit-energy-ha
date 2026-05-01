@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from typing import Any
 
@@ -12,7 +13,6 @@ from .const import (
     COMMON_HEADERS,
     CONTRACTS_HEADERS,
     CONTRACTS_URL,
-    COOKIES_CONST,
     COSTS_URL,
     HOUSES_URL,
     INVOICES_URL,
@@ -36,6 +36,7 @@ COOKIE_DOMAINS = ("login.repsol.es", "areacliente.repsol.es", "repsol.es")
 LOGIN_FAILURE_COOLDOWN = 300.0
 # Cooldown extendido cuando Gigya devuelve rate-limit explícito.
 LOGIN_RATE_LIMIT_COOLDOWN = 900.0
+ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 
 
 class RepsolLuzYGasAPI:
@@ -56,10 +57,16 @@ class RepsolLuzYGasAPI:
         self.uid: str | None = None
         self.signature: str | None = None
         self.timestamp: str | None = None
-        self.cookies: dict[str, str] = dict(COOKIES_CONST) if COOKIES_CONST else {}
+        self.cookies: dict[str, str] = {}
         self._login_lock = asyncio.Lock()
         self._last_login_fail_at: float = 0.0
         self._last_login_err: str | None = None
+
+    def _validated_id(self, value: str, name: str) -> str:
+        """Valida IDs remotos antes de construir URLs."""
+        if not isinstance(value, str) or not ID_RE.fullmatch(value):
+            raise Exception(f"invalid_{name}")
+        return value
 
     def _clear_auth(self) -> None:
         """Borra tokens en memoria para forzar relogin limpio."""
@@ -179,8 +186,7 @@ class RepsolLuzYGasAPI:
                     ) as response:
                         if response.status in (401, 403):
                             if relogins >= MAX_RELOGINS:
-                                body = (await response.text())[:400]
-                                raise Exception(f"HTTP {response.status} {body}")
+                                raise Exception(f"http_{response.status}")
                             reset = relogins >= 1
                             LOGGER.info(
                                 "GET %s -> %s. Re-login (reset_cookies=%s) y reintento.",
@@ -194,13 +200,11 @@ class RepsolLuzYGasAPI:
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):
-                            body = (await response.text())[:400]
                             LOGGER.warning(
-                                "GET %s -> %s. Backoff: %s. Body=%s",
+                                "GET %s -> %s. Backoff: %s.",
                                 url,
                                 response.status,
                                 attempt + 1,
-                                body,
                             )
                             if attempt < REQUEST_RETRIES:
                                 await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
@@ -208,8 +212,7 @@ class RepsolLuzYGasAPI:
                             continue
 
                         if response.status != 200:
-                            body = (await response.text())[:400]
-                            raise Exception(f"HTTP {response.status} {body}")
+                            raise Exception(f"http_{response.status}")
 
                         return await response.json(content_type=None)
             except Exception as err:  # noqa: BLE001
@@ -256,8 +259,8 @@ class RepsolLuzYGasAPI:
                         async with self.session.post(
                             LOGIN_URL, headers=headers, cookies=self.cookies, data=data
                         ) as response:
-                            text = await response.text()
                             if response.status != 200:
+                                text = await response.text()
                                 if "security issues" in text or "400006" in text:
                                     LOGGER.warning(
                                         "Login bloqueado por seguridad (HTTP %s). Reintentamos con cookies nuevas.",
@@ -269,14 +272,14 @@ class RepsolLuzYGasAPI:
                                         await self._bootstrap_gigya()
                                         continue
                                     raise Exception(
-                                        f"login_failed_blocked {response.status} {text[:200]}"
+                                        f"login_failed_blocked {response.status}"
                                     )
-                                raise Exception(f"login_failed_http {response.status} {text[:300]}")
+                                raise Exception(f"login_failed_http {response.status}")
 
                             try:
                                 payload = await response.json(content_type=None)
                             except Exception as err:  # noqa: BLE001
-                                raise Exception(f"login_failed_parse {text[:300]}") from err
+                                raise Exception("login_failed_parse") from err
 
                             # Gigya devuelve HTTP 200 incluso en errores; hay que inspeccionar errorCode.
                             error_code = payload.get("errorCode", 0) or 0
@@ -324,10 +327,15 @@ class RepsolLuzYGasAPI:
                             self.timestamp = user_info.get("signatureTimestamp")
 
                             if not (self.uid and self.signature and self.timestamp):
+                                err_msg = (
+                                    payload.get("errorMessage")
+                                    or payload.get("statusReason")
+                                    or "missing_tokens"
+                                )
                                 LOGGER.warning(
-                                    "Login Gigya 200 sin tokens. errorCode=%s payload=%s",
+                                    "Login Gigya 200 sin tokens. errorCode=%s reason=%s",
                                     payload.get("errorCode"),
-                                    str(payload)[:400],
+                                    err_msg,
                                 )
                                 self._clear_cookies()
                                 self._clear_auth()
@@ -368,12 +376,16 @@ class RepsolLuzYGasAPI:
 
     async def async_get_invoices(self, house_id: str, contract_id: str) -> Any:
         """Obtiene las facturas del contrato."""
-        url = INVOICES_URL.format(house_id, contract_id)
+        safe_house_id = self._validated_id(house_id, "house_id")
+        safe_contract_id = self._validated_id(contract_id, "contract_id")
+        url = INVOICES_URL.format(safe_house_id, safe_contract_id)
         return await self._get_json(url, self._auth_headers(REFERER_BILLING))
 
     async def async_get_costs(self, house_id: str, contract_id: str) -> dict[str, Any]:
         """Obtiene el acumulado de consumo y costes."""
-        url = COSTS_URL.format(house_id, contract_id)
+        safe_house_id = self._validated_id(house_id, "house_id")
+        safe_contract_id = self._validated_id(contract_id, "contract_id")
+        url = COSTS_URL.format(safe_house_id, safe_contract_id)
         response = await self._get_json(url, self._auth_headers())
         base = {
             "totalDays": 0,
@@ -389,7 +401,9 @@ class RepsolLuzYGasAPI:
 
     async def async_get_next_invoice(self, house_id: str, contract_id: str) -> dict[str, Any]:
         """Próxima factura: tolera estados 'no disponible' devolviendo 0s."""
-        url = NEXT_INVOICE_URL.format(house_id, contract_id)
+        safe_house_id = self._validated_id(house_id, "house_id")
+        safe_contract_id = self._validated_id(contract_id, "contract_id")
+        url = NEXT_INVOICE_URL.format(safe_house_id, safe_contract_id)
         headers = self._auth_headers(REFERER_BILLING)
         base = {"amount": 0, "amountVariable": 0, "amountFixed": 0}
         last_exc: Exception | None = None
@@ -421,13 +435,11 @@ class RepsolLuzYGasAPI:
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):
-                            body = (await response.text())[:400]
                             LOGGER.warning(
-                                "Invoice estimate %s -> %s. Backoff (%s). Body=%s",
+                                "Invoice estimate %s -> %s. Backoff (%s).",
                                 url,
                                 response.status,
                                 attempt + 1,
-                                body,
                             )
                             await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
                             continue
@@ -447,15 +459,13 @@ class RepsolLuzYGasAPI:
                                 return base
 
                             LOGGER.info(
-                                "Invoice estimate %s -> %s. Respuesta=%s. Devolviendo 0s.",
+                                "Invoice estimate %s -> %s. Devolviendo 0s.",
                                 url,
                                 response.status,
-                                text,
                             )
                             return base
 
-                        text = (await response.text())[:400]
-                        raise Exception(f"HTTP {response.status} {text}")
+                        raise Exception(f"http_{response.status}")
             except Exception as err:  # noqa: BLE001
                 last_exc = err
                 await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
@@ -470,7 +480,9 @@ class RepsolLuzYGasAPI:
 
     async def async_get_virtual_battery_history(self, house_id: str, contract_id: str) -> dict[str, Any]:
         """Histórico de batería virtual; 404 conocido -> {}."""
-        url = VIRTUAL_BATTERY_HISTORY_URL.format(house_id, contract_id)
+        safe_house_id = self._validated_id(house_id, "house_id")
+        safe_contract_id = self._validated_id(contract_id, "contract_id")
+        url = VIRTUAL_BATTERY_HISTORY_URL.format(safe_house_id, safe_contract_id)
         headers = self._auth_headers()
         last_exc: Exception | None = None
         relogins = 0
@@ -496,13 +508,11 @@ class RepsolLuzYGasAPI:
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):
-                            body = (await response.text())[:400]
                             LOGGER.warning(
-                                "VB history %s -> %s. Backoff (%s). Body=%s",
+                                "VB history %s -> %s. Backoff (%s).",
                                 url,
                                 response.status,
                                 attempt + 1,
-                                body,
                             )
                             await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
                             continue
@@ -521,15 +531,13 @@ class RepsolLuzYGasAPI:
                                 return {}
 
                             LOGGER.info(
-                                "VB history %s -> %s. Respuesta=%s. Devolviendo {}.",
+                                "VB history %s -> %s. Devolviendo {}.",
                                 url,
                                 response.status,
-                                text,
                             )
                             return {}
 
-                        text = (await response.text())[:400]
-                        raise Exception(f"HTTP {response.status} {text}")
+                        raise Exception(f"http_{response.status}")
             except Exception as err:  # noqa: BLE001
                 last_exc = err
                 await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
@@ -544,7 +552,8 @@ class RepsolLuzYGasAPI:
 
     async def async_get_house_details(self, house_id: str) -> Any:
         """Obtiene el detalle de una vivienda."""
-        url = HOUSES_URL.format(house_id)
+        safe_house_id = self._validated_id(house_id, "house_id")
+        url = HOUSES_URL.format(safe_house_id)
         return await self._get_json(url, self._auth_headers())
 
     async def _fetch_contract_data(self, contract: dict[str, Any]) -> tuple[str, dict[str, Any]]:

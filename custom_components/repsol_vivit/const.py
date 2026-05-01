@@ -72,17 +72,6 @@ CONTRACTS_HEADERS = {
     "Accept": "application/json, text/plain, */*",
 }
 
-# Cookies necesarias para el login Gigya
-COOKIES_CONST = {
-    "gmid": (
-        "gmid.ver4.AtLtj-S6Bg.5nGvNQiXUMMFW5Z7o3A2mIP4kjnCrm-CtwscvU8NC2FhNb6dxX09HfdUzL3pI26o."
-        "SHj7Fh8B8OK5xpZyFyZUX6mtQeRTaEhz_FtBwVbr_-5l6b8u6iBOOR6aoh7B-2kdAVrB3ro8ysuq1sEGjriOfQ.sc3"
-    ),
-    "ucid": "fXMDPs47yZukqcRaCm6LKQ",
-    "hasGmid": "ver4",
-    "gig_bootstrap_3_jm2BKK8jIBHi9nXHP8OsQ-HNgJKWxgd1o6kbNqsWvhUy0hhD1eeCpHC-qCrrWe8D": "login_ver4",
-}
-
 # Payload base para login Gigya
 LOGIN_DATA = {
     "targetEnv": "jssdk",

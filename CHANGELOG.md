@@ -1,9 +1,18 @@
 # CHANGELOG
+## 2.1.11 — 2026-05-01
+
+### Seguridad
+- Eliminadas las cookies Gigya hardcodeadas en `const.py` (`COOKIES_CONST`). El flujo ya obtiene cookies frescas vía `accounts.webSdkBootstrap`; no quedan valores de sesión versionados en el repositorio.
+- Menos filtrado en logs y excepciones: se dejan de registrar fragmentos de cuerpo HTTP y el payload JSON completo en fallos de login; los errores HTTP usan códigos sin adjuntar el body.
+- Validación de `house_id` y `contract_id` (alfanumérico, guiones y guiones bajos, longitud acotada) antes de interpolar en las URLs de la API.
+
+---
+
 ## 2.1.10 — 2026-04-24
 
 ### Cambiado
 - Tras cada `accounts.login` se hace un warmup GET al portal `areacliente.repsol.es` para que el BFF emita su propia cookie de sesión. Intento de mitigar el 401 persistente `The user signature provided is not valid`, que aparece aunque la firma de Gigya se acabe de generar.
-- `_bootstrap_gigya` parte de cookies vacías antes de capturar las nuevas (evita arrastrar valores caducados de `COOKIES_CONST`).
+- `_bootstrap_gigya` parte de cookies vacías antes de capturar las nuevas desde Gigya.
 - Nuevo log `INFO` tras cada login correcto con UID (8 chars), `signatureTimestamp` y longitud de la firma para diagnosticar rechazos posteriores del BFF.
 
 ---
