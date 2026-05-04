@@ -1,4 +1,12 @@
 # CHANGELOG
+## 2.1.12 — 2026-05-01
+
+### Corregido
+- Si un endpoint fallaba con HTTP 5xx (p. ej. facturas `/invoices`) el `asyncio.gather` fallaba entero y el coordinator no devolvía datos: tras un reinicio duro sin caché todas las entidades quedaban **no disponibles**. Ahora cada llamada se gestiona con `return_exceptions=True`: fallos parciales usan valores por defecto (lista de facturas vacía, costes a cero, etc.) y el resto de sensores sigue actualizando.
+- Menos ruido en el registro: los reintentos por 429/5xx en `_get_json` (y backoff equivalente en invoice estimate / VB history) pasan a `DEBUG`; un único `WARNING` cuando se agotan reintentos o al registrar un fallo parcial por contrato.
+
+---
+
 ## 2.1.11 — 2026-05-01
 
 ### Seguridad

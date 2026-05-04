@@ -1,7 +1,7 @@
 {
   "domain": "repsol_vivit",
   "name": "Vivit Energy Portal",
-  "version": "2.1.11",
+  "version": "2.1.12",
   "config_flow": true,
   "documentation": "https://github.com/danielmigueltejedor/vivit-energy-ha",
   "integration_type": "service",

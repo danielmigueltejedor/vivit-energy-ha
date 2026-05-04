@@ -91,7 +91,7 @@ class RepsolLuzYGasAPI:
         bootstrap (gmid/ucid/gig_bootstrap_*) están caducadas o no coinciden
         con la APIKey, devolviendo HTTP 200 + errorCode 400006.
         """
-        # Partimos de cookies vacías para no arrastrar las hardcoded (caducadas).
+        # Partimos de cookies vacías; el POST de login las rellena desde el bootstrap.
         self.cookies = {}
         params = {
             "apiKey": LOGIN_DATA["APIKey"],
@@ -200,14 +200,21 @@ class RepsolLuzYGasAPI:
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):
-                            LOGGER.warning(
-                                "GET %s -> %s. Backoff: %s.",
-                                url,
-                                response.status,
-                                attempt + 1,
-                            )
                             if attempt < REQUEST_RETRIES:
+                                LOGGER.debug(
+                                    "GET %s -> %s. Reintento %s/%s.",
+                                    url,
+                                    response.status,
+                                    attempt + 1,
+                                    REQUEST_RETRIES + 1,
+                                )
                                 await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                            else:
+                                LOGGER.warning(
+                                    "GET %s -> %s. Sin más reintentos en este ciclo.",
+                                    url,
+                                    response.status,
+                                )
                             attempt += 1
                             continue
 
@@ -218,7 +225,16 @@ class RepsolLuzYGasAPI:
             except Exception as err:  # noqa: BLE001
                 last_exc = err
                 if attempt < REQUEST_RETRIES:
+                    LOGGER.debug(
+                        "GET %s excepción (reintento %s/%s): %s",
+                        url,
+                        attempt + 1,
+                        REQUEST_RETRIES + 1,
+                        err,
+                    )
                     await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                else:
+                    LOGGER.warning("GET %s agotó reintentos: %s", url, err)
                 attempt += 1
 
         raise last_exc or Exception("request_failed")
@@ -435,8 +451,8 @@ class RepsolLuzYGasAPI:
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):
-                            LOGGER.warning(
-                                "Invoice estimate %s -> %s. Backoff (%s).",
+                            LOGGER.debug(
+                                "Invoice estimate %s -> %s. Reintento %s.",
                                 url,
                                 response.status,
                                 attempt + 1,
@@ -508,8 +524,8 @@ class RepsolLuzYGasAPI:
                             continue
 
                         if response.status in (429, 500, 502, 503, 504):
-                            LOGGER.warning(
-                                "VB history %s -> %s. Backoff (%s).",
+                            LOGGER.debug(
+                                "VB history %s -> %s. Reintento %s.",
                                 url,
                                 response.status,
                                 attempt + 1,
@@ -557,9 +573,15 @@ class RepsolLuzYGasAPI:
         return await self._get_json(url, self._auth_headers())
 
     async def _fetch_contract_data(self, contract: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        """Carga en paralelo todos los datos de un contrato."""
+        """Carga en paralelo todos los datos de un contrato.
+
+        Si un endpoint falla (p. ej. facturas con HTTP 500), se usan valores por
+        defecto y el resto de sensores sigue actualizando (evita 'unavailable'
+        en todo el dispositivo tras reset o caída parcial de la API).
+        """
         house_id = contract["house_id"]
         contract_id = contract["contract_id"]
+        ctx = f"{house_id}/{contract_id}"
         tasks = [
             self.async_get_house_details(house_id),
             self.async_get_invoices(house_id, contract_id),
@@ -567,12 +589,54 @@ class RepsolLuzYGasAPI:
             self.async_get_next_invoice(house_id, contract_id),
         ]
 
+        labels = ("house_details", "invoices", "costs", "next_invoice")
+        defaults: list[Any] = [
+            {},
+            [],
+            {
+                "totalDays": 0,
+                "consumption": 0,
+                "amount": 0,
+                "amountVariable": 0,
+                "amountFixed": 0,
+                "averageAmount": 0,
+            },
+            {"amount": 0, "amountVariable": 0, "amountFixed": 0},
+        ]
+
         has_virtual_battery = (contract.get("contractType") or "").upper() == "ELECTRICITY"
         if has_virtual_battery:
             tasks.append(self.async_get_virtual_battery_history(house_id, contract_id))
+            labels = (*labels, "virtual_battery_history")
+            defaults.append({})
 
-        results = await asyncio.gather(*tasks)
-        house_data, invoices_data, costs_data, next_invoice_data, *vb_results = results
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        resolved: list[Any] = []
+        for result, label, default in zip(results, labels, defaults, strict=True):
+            if isinstance(result, asyncio.CancelledError):
+                raise result
+            if isinstance(result, Exception):
+                LOGGER.warning(
+                    "Fallo parcial %s para %s: %s (se usan datos por defecto).",
+                    label,
+                    ctx,
+                    result,
+                )
+                resolved.append(default)
+            else:
+                resolved.append(result)
+
+        if has_virtual_battery:
+            (
+                house_data,
+                invoices_data,
+                costs_data,
+                next_invoice_data,
+                vb_hist,
+            ) = resolved
+        else:
+            house_data, invoices_data, costs_data, next_invoice_data = resolved
+            vb_hist = None
 
         return contract_id, {
             "contracts": contract,
@@ -580,7 +644,7 @@ class RepsolLuzYGasAPI:
             "invoices": invoices_data,
             "costs": costs_data,
             "nextInvoice": next_invoice_data,
-            "virtual_battery_history": vb_results[0] if vb_results else None,
+            "virtual_battery_history": vb_hist,
         }
 
     async def fetch_all_data(self) -> dict[str, Any]:
