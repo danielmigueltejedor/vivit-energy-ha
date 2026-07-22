@@ -1,280 +1,126 @@
-# ⚡ Vivit Energy Portal for Home Assistant
+<div align="center">
+  <img src="./custom_components/repsol_vivit/brand/logo.png" alt="Vivit Energy Portal logo" width="112">
+  <h1>Vivit Energy Portal</h1>
+  <p><strong>Repsol electricity, gas, invoices and virtual battery data in Home Assistant.</strong></p>
 
-![Version](https://img.shields.io/badge/version-2.1.12-blue.svg)
-![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5?logo=home-assistant)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Status](https://img.shields.io/badge/status-stable-success.svg)
-![GitHub](https://img.shields.io/badge/hosted%20on-GitHub-black?logo=github)
+  <p>
+    <a href="https://github.com/danielmigueltejedor/vivit-energy-ha/releases"><img src="https://img.shields.io/github/v/release/danielmigueltejedor/vivit-energy-ha?display_name=tag&sort=semver" alt="Latest release"></a>
+    <img src="https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5?logo=home-assistant&logoColor=white" alt="Home Assistant 2025.1 or newer">
+    <img src="https://img.shields.io/badge/HACS-default%20store-41BDF5" alt="Available in the default HACS store">
+    <img src="https://img.shields.io/badge/status-stable-2EA44F" alt="Stable status">
+    <a href="./LICENSE"><img src="https://img.shields.io/github/license/danielmigueltejedor/vivit-energy-ha" alt="MIT license"></a>
+  </p>
 
-**Vivit Energy Portal for Home Assistant** is an unofficial custom integration that connects the **Repsol / Vivit Energy customer portal** with **Home Assistant**.
-
-It allows you to monitor electricity and gas contracts, consumption, estimated costs, invoices and virtual battery data directly from Home Assistant.
-
-> 🟡 This project is **not affiliated with, endorsed by, or supported by Repsol S.A.**  
-> It is provided for personal and educational use only.
-
----
-
-## ✨ Features
-
-- Login using your Repsol / Vivit Energy customer area credentials
-- Support for electricity and gas contracts
-- Support for multiple contracts
-- Automatic updates using Home Assistant's `DataUpdateCoordinator`
-- Configurable update interval
-- Reauthentication flow when credentials change
-- Optional virtual battery sensors
-- Entities for:
-  - Accumulated consumption
-  - Estimated cost
-  - Last invoice
-  - Next invoice estimate
-  - Contract status
-  - Power prices
-  - Virtual battery data, when available
+  <p>
+    <a href="#installation">Installation</a> ·
+    <a href="#configuration">Configuration</a> ·
+    <a href="#entities">Entities</a> ·
+    <a href="https://github.com/danielmigueltejedor/vivit-energy-ha/issues">Support</a>
+  </p>
+</div>
 
 ---
 
-## ⚠️ Important notice
+Vivit Energy Portal is an unofficial Home Assistant integration for the Repsol / Vivit Energy customer portal. It brings contract, consumption, cost, invoice and virtual battery information into the same place as the rest of your home energy data.
 
-This integration depends on the private Repsol / Vivit Energy web API.
+> [!NOTE]
+> Vivit Energy Portal is now available directly from the default HACS catalogue. No custom repository is required.
 
-Because this API is not public:
+## Highlights
 
-- Repsol may change it at any time
-- Some sensors may temporarily stop working after portal changes
-- Missing or delayed data may depend on Repsol servers
-- The integration may require updates if the customer portal changes
+| Capability | What it provides |
+|---|---|
+| Electricity and gas | Contract and usage data for both energy services |
+| Multiple contracts | Add and monitor more than one eligible contract |
+| Cost visibility | Accumulated costs, estimates and power prices |
+| Invoices | Latest invoice and next-invoice estimates when available |
+| Virtual battery | Optional balance and related sensors for supported accounts |
+| Native Home Assistant setup | Config flow, options, reauthentication and coordinator-based updates |
 
-If something stops working, please open an issue and include logs without sharing personal data.
+## Important notice
 
----
+This integration relies on the private API used by the Repsol / Vivit Energy customer portal. Because that API is not public, Repsol may change it without notice. Temporary missing data may also originate from the provider's systems.
 
-## 🧩 Installation
+This project is not affiliated with, endorsed by or supported by Repsol S.A. It is intended for personal and informational use only.
 
-### Option 1 — HACS
+## Installation
 
-If the integration is available in HACS, install it from there.
+### HACS — recommended
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=danielmigueltejedor&repository=vivit-energy-ha&category=Integration)
+1. Open **HACS → Integrations**.
+2. Search for **Vivit Energy Portal**.
+3. Select the integration and choose **Download**.
+4. Restart Home Assistant.
 
-If it is not yet available in the default HACS list, you can add it as a custom repository:
+[![Open Vivit Energy Portal in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=danielmigueltejedor&repository=vivit-energy-ha&category=Integration)
 
-1. Open **HACS**
-2. Go to **Integrations**
-3. Open the three-dot menu
-4. Select **Custom repositories**
-5. Add this repository URL:
+You do **not** need to add this repository manually.
 
-```text
-https://github.com/danielmigueltejedor/vivit-energy-ha
-```
+### Manual installation
 
-6. Category:
-
-```text
-Integration
-```
-
-7. Install the integration
-8. Restart Home Assistant
-
----
-
-### Option 2 — Manual installation
-
-1. Download this repository from GitHub:
-
-```text
-https://github.com/danielmigueltejedor/vivit-energy-ha
-```
-
-2. Copy the integration folder:
-
-```text
-custom_components/repsol_vivit
-```
-
-to:
-
-```text
-/config/custom_components/repsol_vivit
-```
-
+1. Download the [latest release](https://github.com/danielmigueltejedor/vivit-energy-ha/releases/latest).
+2. Copy `custom_components/repsol_vivit` to `/config/custom_components/repsol_vivit`.
 3. Restart Home Assistant.
 
----
+## Configuration
 
-### Option 3 — Terminal / SSH installation
+1. Go to **Settings → Devices & services → Add integration**.
+2. Search for **Vivit Energy Portal**.
+3. Sign in with your Repsol / Vivit Energy customer-area credentials.
+4. Select the contract to add.
+5. Repeat the flow for any additional supported contracts.
 
-> Recommended if you use the **Terminal & SSH** add-on in Home Assistant OS or Supervised.
+The integration options let you adjust the update interval and enable virtual battery entities where available. If the provider rejects saved credentials, Home Assistant starts a reauthentication flow.
 
-Run these commands in your Home Assistant terminal:
+## Entities
 
-```bash
-# 1) Prepare destination
-mkdir -p /config/custom_components
-rm -rf /config/custom_components/repsol_vivit
+The exact entity IDs depend on your language, contract and entity registry.
 
-# 2) Clone the repository temporarily
-cd /config
-git clone --depth=1 https://github.com/danielmigueltejedor/vivit-energy-ha.git .vivit-tmp
-
-# 3) Copy only the integration
-cp -r .vivit-tmp/custom_components/repsol_vivit /config/custom_components/
-
-# 4) Clean temporary files
-rm -rf /config/.vivit-tmp
-
-# 5) Restart Home Assistant
-```
-
-After installation, the integration should be located at:
-
-```text
-/config/custom_components/repsol_vivit
-```
-
----
-
-## 🔄 Updating
-
-### HACS
-
-If installed through HACS, update it from the HACS interface and restart Home Assistant.
-
-### Manual / SSH update
-
-```bash
-# 1) Remove previous version
-rm -rf /config/custom_components/repsol_vivit
-
-# 2) Clone latest version
-cd /config
-git clone --depth=1 https://github.com/danielmigueltejedor/vivit-energy-ha.git .vivit-tmp
-
-# 3) Copy updated integration
-cp -r .vivit-tmp/custom_components/repsol_vivit /config/custom_components/
-
-# 4) Clean temporary files
-rm -rf /config/.vivit-tmp
-
-# 5) Restart Home Assistant
-```
-
----
-
-## ⚙️ Configuration
-
-1. In Home Assistant, go to:
-
-```text
-Settings → Devices & services → Add integration
-```
-
-2. Search for:
-
-```text
-Vivit Energy Portal (Unofficial)
-```
-
-3. Enter your Repsol / Vivit Energy customer area username and password
-4. Select the contract you want to add
-5. The entities will be created automatically
-
-From the integration options screen you can configure:
-
-- Update interval
-- Virtual battery sensors
-- Available integration options
-
----
-
-## 📊 Created entities
-
-Entity names may vary depending on your Home Assistant language, entity registry and contract configuration.
-
-Common entities include:
-
-| Entity | Description |
+| Example entity | Description |
 |---|---|
 | `sensor.vivit_amount` | Estimated total cost |
 | `sensor.vivit_consumption` | Accumulated consumption in kWh |
-| `sensor.vivit_last_invoice` | Last issued invoice |
+| `sensor.vivit_last_invoice` | Latest issued invoice |
 | `sensor.vivit_next_invoice` | Next invoice estimate |
-| `sensor.vivit_power_price_punta` | Peak power price |
+| `sensor.vivit_power_price_punta` | Peak-period power price |
 | `sensor.vivit_virtual_battery_*` | Virtual battery data, when available |
 
----
+Availability and update frequency ultimately depend on the data exposed by the customer portal.
 
-## 🧠 Technical details
+## Data and privacy
 
-- Uses endpoints from the official Repsol customer portal
-- Uses dynamic headers and referers depending on the requested section
-- Fully asynchronous implementation using `asyncio` and `aiohttp`
-- Configuration through Home Assistant `config_flow`
-- Data updates handled with `DataUpdateCoordinator`
-- Supports reauthentication from Home Assistant
+- Credentials are used only to authenticate against the Repsol / Vivit Energy service.
+- The integration communicates with the provider using asynchronous Home Assistant networking.
+- Do not share usernames, passwords, contract numbers, addresses or unredacted diagnostics in public issues.
+- This integration displays provider data for convenience; always use official invoices and contractual documents for billing decisions.
 
----
+## Support
 
-## 🐛 Reporting issues
+Before opening an [issue](https://github.com/danielmigueltejedor/vivit-energy-ha/issues):
 
-Before opening an issue:
+1. Update to the latest release and restart Home Assistant.
+2. Check whether the customer portal itself is operating normally.
+3. Search existing issues for the same symptom.
+4. Collect relevant logs and remove all personal information.
 
-1. Make sure you are using the latest version
-2. Restart Home Assistant
-3. Check if the issue has already been reported
-4. Collect relevant logs
+A useful report includes the Home Assistant version, integration version, installation method, steps to reproduce and sanitized logs. Bug reports and feature requests have dedicated issue templates.
 
-Please include:
+## Technical overview
 
-- Home Assistant version
-- Integration version
-- Installation method: HACS or manual
-- A clear description of the problem
-- Steps to reproduce
-- Relevant logs, with personal data removed
+- Fully asynchronous implementation with `asyncio` and `aiohttp`
+- UI configuration through Home Assistant `config_flow`
+- Scheduled updates through `DataUpdateCoordinator`
+- Dynamic request headers and referers for the relevant portal sections
+- Built-in options and reauthentication flows
 
-⚠️ Never share your Repsol username, password, contract number, address or personal details in public issues.
+See the [changelog](./CHANGELOG.md) for release history.
 
----
+## License and trademarks
 
-## 🛣️ Roadmap
+Vivit Energy Portal is released under the [MIT License](./LICENSE). Repsol and Vivit are trademarks of their respective owners.
 
-Possible future improvements:
-
-- Improve error handling when Repsol changes the portal
-- Improve diagnostics and logs
-- Add more detailed invoice information
-- Improve support for edge cases with multiple contracts
-- Improve virtual battery sensors
-- Add more documentation and examples
-
----
-
-## 🧑‍💻 Developer
-
-- **Author:** [@danielmigueltejedor](https://github.com/danielmigueltejedor)
-- **Repository:** https://github.com/danielmigueltejedor/vivit-energy-ha
-- **Versión:** 2.1.12
-- **Type:** Unofficial custom Home Assistant integration
-- **License:** [MIT](./LICENSE)
-
----
-
-## ⚠️ Legal disclaimer
-
-This project is not affiliated with, endorsed by, or supported by Repsol S.A.
-
-The data obtained through this integration is intended for personal and informational use only.
-
-**Repsol** and **Vivit** are trademarks of their respective owners.
-
----
-
-## 💰 Donations
-
-If you like this project and want to support its development, you can donate here:
-
-[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/DanielMiguelTejedor)
+<div align="center">
+  <sub>Created and maintained by <a href="https://github.com/danielmigueltejedor">Daniel Miguel Tejedor</a>.</sub>
+  <br><br>
+  <a href="https://paypal.me/DanielMiguelTejedor"><img src="https://img.shields.io/badge/Support%20the%20project-PayPal-0070BA?logo=paypal&logoColor=white" alt="Support the project with PayPal"></a>
+</div>
