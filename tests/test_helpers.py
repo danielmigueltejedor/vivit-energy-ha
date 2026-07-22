@@ -82,6 +82,54 @@ class HelperTests(unittest.TestCase):
             )
         )
 
+    def test_device_identifier_is_shared_when_house_is_missing(self) -> None:
+        self.assertEqual(
+            helpers.build_device_identifier(None, "contract-1"),
+            "unknown_house_contract-1",
+        )
+
+    def test_contract_snapshot_uses_latest_payload(self) -> None:
+        data = {
+            "contract-1": {
+                "contracts": {"status": "ACTIVE"},
+                "house_data": {
+                    "contracts": [{"code": "contract-1", "power": 3.45}]
+                },
+            }
+        }
+        info, house_contract = helpers.get_contract_snapshot(data, "contract-1")
+        self.assertEqual(info["status"], "ACTIVE")
+        self.assertEqual(house_contract["power"], 3.45)
+
+        data["contract-1"]["house_data"]["contracts"][0]["power"] = 4.6
+        _, refreshed_contract = helpers.get_contract_snapshot(data, "contract-1")
+        self.assertEqual(refreshed_contract["power"], 4.6)
+
+    def test_latest_invoice_preserves_zero_amount(self) -> None:
+        invoice = helpers.get_latest_invoice([{"amount": 0, "totalAmount": 12.5}])
+        self.assertEqual(invoice["amount"], 0)
+
+    def test_latest_redemption_tracks_new_data(self) -> None:
+        history = {
+            "discounts": {
+                "data": [
+                    {"billingDate": "2026-01-01", "amount": 1},
+                    {"billingDate": "2026-02-01", "amount": 2},
+                ]
+            }
+        }
+        self.assertEqual(helpers.get_latest_redemption(history)["amount"], 2)
+
+    def test_provider_url_redacts_personal_identifiers(self) -> None:
+        url = (
+            "https://areacliente.repsol.es/api/proxy/houses/house-secret/"
+            "products/contract-secret/invoices?limit=10"
+        )
+        redacted = helpers.redact_provider_url(url)
+        self.assertNotIn("house-secret", redacted)
+        self.assertNotIn("contract-secret", redacted)
+        self.assertIn("/houses/<house>/products/<contract>/invoices", redacted)
+
 
 if __name__ == "__main__":
     unittest.main()

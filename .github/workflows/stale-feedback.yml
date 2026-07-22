@@ -1,0 +1,50 @@
+name: Close stale feedback issues
+
+on:
+  schedule:
+    - cron: "20 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  stale-feedback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close issues waiting for feedback for 14 days
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              labels: "status: waiting feedback",
+              per_page: 100
+            });
+
+            for (const issue of issues) {
+              if (issue.pull_request || new Date(issue.updated_at) > cutoff) continue;
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: [
+                  "Closing this issue because it has been waiting for feedback for 14 days.",
+                  "",
+                  "If the problem still exists, feel free to reopen it with the requested information."
+                ].join("\n")
+              });
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: "closed",
+                state_reason: "not_planned"
+              });
+            }
+

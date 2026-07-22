@@ -1,0 +1,32 @@
+name: 🌍 Translation correction
+description: Report incorrect or unclear wording
+title: "[Translation]: "
+labels: ["type: translation", "area: translations", "status: needs triage"]
+assignees: []
+
+body:
+  - type: dropdown
+    id: language
+    attributes:
+      label: UI language
+      options: [English (en), Spanish (es), Portuguese (pt)]
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current text
+    validations:
+      required: true
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested correction
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Where is this text shown?
+    validations:
+      required: true

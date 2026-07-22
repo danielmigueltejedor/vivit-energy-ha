@@ -1,4 +1,27 @@
 # CHANGELOG
+## 2.1.13 — 2026-07-22
+
+### Corregido
+- Los sensores de estado, potencia, tarifa y precios ya consultan el payload más reciente del coordinator; antes conservaban el snapshot obtenido al crear la entidad y podían quedar congelados hasta recargar la integración.
+- Los sensores del último canje de batería virtual se actualizan con cada refresco. El importe del último canje usa además un `unique_id` propio y deja de colisionar con el sensor de importe acumulado.
+- Sensores y binary sensors comparten el mismo identificador de dispositivo incluso si la API omite temporalmente el identificador de vivienda.
+- Los importes de factura iguales a cero ya no se interpretan como valores ausentes.
+- El flujo de configuración distingue las credenciales realmente inválidas de bloqueos o fallos transitorios de Gigya.
+- La normalización de contratos y respuestas auxiliares tolera payloads inesperados sin provocar errores de atributo.
+- Los logs dejan de incluir IDs de vivienda/contrato y fragmentos del UID de autenticación.
+
+### Rendimiento y fiabilidad
+- Se eliminan esperas de backoff después del último intento en los endpoints de próxima factura y batería virtual.
+- Los errores HTTP no recuperables dejan de reintentarse, evitando esperas inútiles.
+- Se limita el número de reautenticaciones de esos endpoints para evitar golpear repetidamente el servicio durante un bloqueo.
+- Se añaden tests de regresión, lint y compilación a CI.
+
+### Mantenimiento
+- Nuevos formularios de issues y automatización de triaje, feedback, asignación, releases y cierre de incidencias sin respuesta.
+- Validaciones HACS y Hassfest programadas y acciones críticas fijadas a revisiones conocidas.
+
+---
+
 ## 2.1.12 — 2026-05-01
 
 ### Corregido

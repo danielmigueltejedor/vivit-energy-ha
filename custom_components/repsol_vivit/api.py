@@ -25,6 +25,7 @@ from .const import (
     REFERER_PRODUCTS,
     VIRTUAL_BATTERY_HISTORY_URL,
 )
+from .helpers import redact_provider_url
 
 REQ_TIMEOUT = 15
 REQUEST_RETRIES = 3
@@ -157,12 +158,26 @@ class RepsolLuzYGasAPI:
     def _parse_contracts(self, data: Any) -> dict[str, list[dict[str, Any]]]:
         """Normaliza la respuesta de contratos de la API."""
         parsed: dict[str, list[dict[str, Any]]] = {"information": []}
-        for house in data or []:
-            house_id = (house or {}).get("code")
-            for contract in (house or {}).get("contracts", []):
+        if not isinstance(data, list):
+            return parsed
+        for house in data:
+            if not isinstance(house, dict):
+                continue
+            house_id = house.get("code")
+            for contract in house.get("contracts") or []:
+                if not isinstance(contract, dict):
+                    continue
+                contract_id = contract.get("code")
+                if (
+                    not isinstance(house_id, str)
+                    or not ID_RE.fullmatch(house_id)
+                    or not isinstance(contract_id, str)
+                    or not ID_RE.fullmatch(contract_id)
+                ):
+                    continue
                 parsed["information"].append(
                     {
-                        "contract_id": contract.get("code"),
+                        "contract_id": contract_id,
                         "contractType": contract.get("contractType"),
                         "cups": contract.get("cups"),
                         "active": contract.get("status") == "ACTIVE",
@@ -175,6 +190,7 @@ class RepsolLuzYGasAPI:
         """GET con reintentos, re-login en 401/403 y backoff en 429/5xx."""
         last_exc: Exception | None = None
         current_headers = dict(headers)
+        log_url = redact_provider_url(url)
         relogins = 0
         attempt = 0
 
@@ -190,7 +206,7 @@ class RepsolLuzYGasAPI:
                             reset = relogins >= 1
                             LOGGER.info(
                                 "GET %s -> %s. Re-login (reset_cookies=%s) y reintento.",
-                                url,
+                                log_url,
                                 response.status,
                                 reset,
                             )
@@ -203,7 +219,7 @@ class RepsolLuzYGasAPI:
                             if attempt < REQUEST_RETRIES:
                                 LOGGER.debug(
                                     "GET %s -> %s. Reintento %s/%s.",
-                                    url,
+                                    log_url,
                                     response.status,
                                     attempt + 1,
                                     REQUEST_RETRIES + 1,
@@ -212,7 +228,7 @@ class RepsolLuzYGasAPI:
                             else:
                                 LOGGER.warning(
                                     "GET %s -> %s. Sin más reintentos en este ciclo.",
-                                    url,
+                                    log_url,
                                     response.status,
                                 )
                             attempt += 1
@@ -224,17 +240,19 @@ class RepsolLuzYGasAPI:
                         return await response.json(content_type=None)
             except Exception as err:  # noqa: BLE001
                 last_exc = err
+                if str(err).startswith("http_"):
+                    raise
                 if attempt < REQUEST_RETRIES:
                     LOGGER.debug(
                         "GET %s excepción (reintento %s/%s): %s",
-                        url,
+                        log_url,
                         attempt + 1,
                         REQUEST_RETRIES + 1,
                         err,
                     )
                     await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
                 else:
-                    LOGGER.warning("GET %s agotó reintentos: %s", url, err)
+                    LOGGER.warning("GET %s agotó reintentos: %s", log_url, err)
                 attempt += 1
 
         raise last_exc or Exception("request_failed")
@@ -300,22 +318,14 @@ class RepsolLuzYGasAPI:
                             # Gigya devuelve HTTP 200 incluso en errores; hay que inspeccionar errorCode.
                             error_code = payload.get("errorCode", 0) or 0
                             if error_code:
-                                err_msg = (
-                                    payload.get("errorMessage")
-                                    or payload.get("statusReason")
-                                    or ""
-                                )
                                 # 403042: loginID/password incorrectos (reauth real).
                                 if error_code == 403042:
-                                    raise Exception(
-                                        f"login_failed_credentials {error_code} {err_msg}"
-                                    )
+                                    raise Exception(f"login_failed_credentials {error_code}")
                                 # 400006 y similares: bloqueo temporal de seguridad.
                                 if error_code in (400006, 400125, 403047, 500001):
                                     LOGGER.warning(
-                                        "Gigya errorCode=%s (%s). Reintento con cookies nuevas.",
+                                        "Gigya errorCode=%s. Reintento con cookies nuevas.",
                                         error_code,
-                                        err_msg,
                                     )
                                     self._clear_cookies()
                                     self._clear_auth()
@@ -323,18 +333,17 @@ class RepsolLuzYGasAPI:
                                         await self._bootstrap_gigya()
                                         continue
                                     raise Exception(
-                                        f"login_failed_blocked {error_code} {err_msg}"
+                                        f"login_failed_blocked {error_code}"
                                     )
                                 # Resto: transitorio. Reintento una vez.
                                 LOGGER.warning(
-                                    "Gigya errorCode=%s (%s). Reintento.",
+                                    "Gigya errorCode=%s. Reintento.",
                                     error_code,
-                                    err_msg,
                                 )
                                 if attempt == 0:
                                     continue
                                 raise Exception(
-                                    f"login_failed_gigya {error_code} {err_msg}"
+                                    f"login_failed_gigya {error_code}"
                                 )
 
                             user_info = payload.get("userInfo") or {}
@@ -343,15 +352,9 @@ class RepsolLuzYGasAPI:
                             self.timestamp = user_info.get("signatureTimestamp")
 
                             if not (self.uid and self.signature and self.timestamp):
-                                err_msg = (
-                                    payload.get("errorMessage")
-                                    or payload.get("statusReason")
-                                    or "missing_tokens"
-                                )
                                 LOGGER.warning(
-                                    "Login Gigya 200 sin tokens. errorCode=%s reason=%s",
+                                    "Login Gigya 200 sin tokens. errorCode=%s.",
                                     payload.get("errorCode"),
-                                    err_msg,
                                 )
                                 self._clear_cookies()
                                 self._clear_auth()
@@ -362,12 +365,7 @@ class RepsolLuzYGasAPI:
                             # Login OK: limpiamos cooldown de error.
                             self._last_login_err = None
                             self._last_login_fail_at = 0.0
-                            LOGGER.info(
-                                "Login Gigya OK uid=%s... ts=%s sig_len=%s",
-                                (self.uid or "")[:8],
-                                self.timestamp,
-                                len(self.signature or ""),
-                            )
+                            LOGGER.info("Login Gigya completado correctamente.")
                             await self._warmup_areacliente()
                             return True
 
@@ -411,6 +409,8 @@ class RepsolLuzYGasAPI:
             "amountFixed": 0,
             "averageAmount": 0,
         }
+        if not isinstance(response, dict):
+            return base
         for key in base:
             base[key] = response.get(key, 0)
         return base
@@ -421,6 +421,7 @@ class RepsolLuzYGasAPI:
         safe_contract_id = self._validated_id(contract_id, "contract_id")
         url = NEXT_INVOICE_URL.format(safe_house_id, safe_contract_id)
         headers = self._auth_headers(REFERER_BILLING)
+        log_url = redact_provider_url(url)
         base = {"amount": 0, "amountVariable": 0, "amountFixed": 0}
         last_exc: Exception | None = None
         relogins = 0
@@ -431,6 +432,8 @@ class RepsolLuzYGasAPI:
                     async with self.session.get(url, headers=headers, cookies=self.cookies) as response:
                         if response.status == 200:
                             payload = await response.json(content_type=None)
+                            if not isinstance(payload, dict):
+                                raise Exception("invalid_invoice_estimate_response")
                             return {
                                 "amount": payload.get("amount", 0),
                                 "amountVariable": payload.get("amountVariable", 0),
@@ -438,10 +441,12 @@ class RepsolLuzYGasAPI:
                             }
 
                         if response.status in (401, 403):
+                            if relogins >= MAX_RELOGINS:
+                                raise Exception(f"http_{response.status}")
                             reset = relogins >= 1
                             LOGGER.info(
                                 "Invoice estimate %s -> %s. Re-login (reset_cookies=%s) y reintento.",
-                                url,
+                                log_url,
                                 response.status,
                                 reset,
                             )
@@ -453,11 +458,12 @@ class RepsolLuzYGasAPI:
                         if response.status in (429, 500, 502, 503, 504):
                             LOGGER.debug(
                                 "Invoice estimate %s -> %s. Reintento %s.",
-                                url,
+                                log_url,
                                 response.status,
                                 attempt + 1,
                             )
-                            await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                            if attempt < REQUEST_RETRIES:
+                                await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
                             continue
 
                         if response.status in (400, 404):
@@ -468,15 +474,13 @@ class RepsolLuzYGasAPI:
                                 or "not available" in text.lower()
                             ):
                                 LOGGER.info(
-                                    "Invoice estimate no disponible para %s/%s. Devolviendo 0s.",
-                                    house_id,
-                                    contract_id,
+                                    "Invoice estimate no disponible. Devolviendo 0s.",
                                 )
                                 return base
 
                             LOGGER.info(
                                 "Invoice estimate %s -> %s. Devolviendo 0s.",
-                                url,
+                                log_url,
                                 response.status,
                             )
                             return base
@@ -484,12 +488,13 @@ class RepsolLuzYGasAPI:
                         raise Exception(f"http_{response.status}")
             except Exception as err:  # noqa: BLE001
                 last_exc = err
-                await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                if str(err) in {"http_401", "http_403"}:
+                    break
+                if attempt < REQUEST_RETRIES:
+                    await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
 
         LOGGER.warning(
-            "Fallo persistente obteniendo invoice estimate %s/%s (%s). Devolviendo 0s.",
-            house_id,
-            contract_id,
+            "Fallo persistente obteniendo invoice estimate (%s). Devolviendo 0s.",
             last_exc,
         )
         return base
@@ -500,6 +505,7 @@ class RepsolLuzYGasAPI:
         safe_contract_id = self._validated_id(contract_id, "contract_id")
         url = VIRTUAL_BATTERY_HISTORY_URL.format(safe_house_id, safe_contract_id)
         headers = self._auth_headers()
+        log_url = redact_provider_url(url)
         last_exc: Exception | None = None
         relogins = 0
 
@@ -508,13 +514,18 @@ class RepsolLuzYGasAPI:
                 async with asyncio.timeout(REQ_TIMEOUT):
                     async with self.session.get(url, headers=headers, cookies=self.cookies) as response:
                         if response.status == 200:
-                            return await response.json(content_type=None)
+                            payload = await response.json(content_type=None)
+                            if not isinstance(payload, dict):
+                                raise Exception("invalid_virtual_battery_response")
+                            return payload
 
                         if response.status in (401, 403):
+                            if relogins >= MAX_RELOGINS:
+                                raise Exception(f"http_{response.status}")
                             reset = relogins >= 1
                             LOGGER.info(
                                 "VB history %s -> %s. Re-login (reset_cookies=%s) y reintento.",
-                                url,
+                                log_url,
                                 response.status,
                                 reset,
                             )
@@ -526,11 +537,12 @@ class RepsolLuzYGasAPI:
                         if response.status in (429, 500, 502, 503, 504):
                             LOGGER.debug(
                                 "VB history %s -> %s. Reintento %s.",
-                                url,
+                                log_url,
                                 response.status,
                                 attempt + 1,
                             )
-                            await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                            if attempt < REQUEST_RETRIES:
+                                await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
                             continue
 
                         if response.status in (400, 404):
@@ -540,15 +552,13 @@ class RepsolLuzYGasAPI:
                                 or "not found" in text.lower()
                             ):
                                 LOGGER.info(
-                                    "VB history no disponible para %s/%s. Devolviendo {}.",
-                                    house_id,
-                                    contract_id,
+                                    "VB history no disponible. Devolviendo {}.",
                                 )
                                 return {}
 
                             LOGGER.info(
                                 "VB history %s -> %s. Devolviendo {}.",
-                                url,
+                                log_url,
                                 response.status,
                             )
                             return {}
@@ -556,12 +566,13 @@ class RepsolLuzYGasAPI:
                         raise Exception(f"http_{response.status}")
             except Exception as err:  # noqa: BLE001
                 last_exc = err
-                await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+                if str(err) in {"http_401", "http_403"}:
+                    break
+                if attempt < REQUEST_RETRIES:
+                    await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
 
         LOGGER.warning(
-            "Fallo persistente obteniendo VB history %s/%s (%s). Devolviendo {}.",
-            house_id,
-            contract_id,
+            "Fallo persistente obteniendo VB history (%s). Devolviendo {}.",
             last_exc,
         )
         return {}
@@ -581,7 +592,6 @@ class RepsolLuzYGasAPI:
         """
         house_id = contract["house_id"]
         contract_id = contract["contract_id"]
-        ctx = f"{house_id}/{contract_id}"
         tasks = [
             self.async_get_house_details(house_id),
             self.async_get_invoices(house_id, contract_id),
@@ -617,9 +627,9 @@ class RepsolLuzYGasAPI:
                 raise result
             if isinstance(result, Exception):
                 LOGGER.warning(
-                    "Fallo parcial %s para %s: %s (se usan datos por defecto).",
+                    "Fallo parcial %s para el contrato seleccionado: %s "
+                    "(se usan datos por defecto).",
                     label,
-                    ctx,
                     result,
                 )
                 resolved.append(default)

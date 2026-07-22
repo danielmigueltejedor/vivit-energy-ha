@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/danielmigueltejedor/vivit-energy-ha/discussions
+    about: Ask setup questions or discuss the Vivit Energy integration.
+  - name: 📚 Documentation
+    url: https://github.com/danielmigueltejedor/vivit-energy-ha#readme
+    about: Read the installation, configuration and privacy guidance first.

@@ -75,8 +75,10 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except Exception as err:  # noqa: BLE001
                 msg = (str(err) or "").lower()
-                if "login_failed" in msg:
+                if "login_failed_credentials" in msg:
                     errors["base"] = "invalid_auth"
+                elif "login_failed" in msg:
+                    errors["base"] = "cannot_connect"
                 elif "no_contracts" in msg or "no contracts" in msg:
                     errors["base"] = "no_contracts"
                 else:
@@ -194,8 +196,10 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except Exception as err:  # noqa: BLE001
                 msg = (str(err) or "").lower()
-                if "login_failed" in msg:
+                if "login_failed_credentials" in msg:
                     errors["base"] = "invalid_auth"
+                elif "login_failed" in msg:
+                    errors["base"] = "cannot_connect"
                 elif "no_contracts" in msg or "no contracts" in msg:
                     errors["base"] = "no_contracts"
                 else:

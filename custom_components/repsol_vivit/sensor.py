@@ -11,7 +11,13 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, LOGGER
-from .helpers import is_virtual_battery_enabled
+from .helpers import (
+    build_device_identifier,
+    get_contract_snapshot,
+    get_latest_invoice,
+    get_latest_redemption,
+    is_virtual_battery_enabled,
+)
 
 # Sensores base (nombres LIMPIOS; el nombre del dispositivo es quien lleva "Contrato N (…)").
 SENSOR_DEFS = [
@@ -115,18 +121,13 @@ def _build_contract_entities(
 
     payload = full_data.get(contract_id) or {}
     cinfo = payload.get("contracts") or {}
-    cups = cinfo.get("cups") or contract_id
     house_id = cinfo.get("house_id")
-
-    house_data = payload.get("house_data") or {}
-    house_contracts = house_data.get("contracts") or []
-    house_contract = next((c for c in house_contracts if c.get("code") == contract_id), {})
 
     ctype = (contract_type or cinfo.get("contractType") or "ELECTRICITY").upper()
     resolved_device_name = device_name or f"Contrato ({'Electricidad' if ctype == 'ELECTRICITY' else 'Gas'})"
 
     device = DeviceInfo(
-        identifiers={(DOMAIN, f"{house_id}_{contract_id}")},
+        identifiers={(DOMAIN, build_device_identifier(house_id, contract_id))},
         name=resolved_device_name,
         manufacturer="Vivit Energy (unofficial)",
         model=("Electricidad" if ctype == "ELECTRICITY" else "Gas"),
@@ -153,9 +154,6 @@ def _build_contract_entities(
                 house_id=house_id,
                 contract_id=contract_id,
                 contract_type=ctype,
-                cups=cups,
-                contract_info=cinfo,
-                house_contract=house_contract,
             )
         )
 
@@ -176,8 +174,7 @@ def _build_contract_entities(
                     )
                 )
             # Último canje (si existe)
-            last_red = max((vb.get("discounts", {}) or {}).get("data", []),
-                           key=lambda x: x.get("billingDate", ""), default=None)
+            last_red = get_latest_redemption(vb)
             if last_red:
                 entities.append(
                     VivitVBSensor(
@@ -188,7 +185,8 @@ def _build_contract_entities(
                         device=device,
                         house_id=house_id,
                         contract_id=contract_id,
-                        coupon_data=last_red,
+                        latest_redemption=True,
+                        unique_id_suffix="last_redemption_amount",
                     )
                 )
                 entities.append(
@@ -200,7 +198,7 @@ def _build_contract_entities(
                         device=device,
                         house_id=house_id,
                         contract_id=contract_id,
-                        coupon_data=last_red,
+                        latest_redemption=True,
                     )
                 )
 
@@ -219,8 +217,9 @@ class VivitBase(CoordinatorEntity, SensorEntity):
         variable: str,
         device_class: Optional[SensorDeviceClass],
         device: DeviceInfo,
-        house_id: str,
+        house_id: str | None,
         contract_id: str,
+        unique_id_suffix: str | None = None,
     ):
         super().__init__(coordinator)
         self._attr_name = name            # nombre visible del sensor (limpio)
@@ -229,10 +228,11 @@ class VivitBase(CoordinatorEntity, SensorEntity):
         self._device = device
         self.house_id = house_id
         self.contract_id = contract_id
+        self._unique_id_suffix = unique_id_suffix or variable
 
     @property
     def unique_id(self) -> str:
-        return f"{self.house_id}_{self.contract_id}_{self.variable}"
+        return f"{build_device_identifier(self.house_id, self.contract_id)}_{self._unique_id_suffix}"
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -266,19 +266,16 @@ class VivitSensor(VivitBase):
         house_id: str,
         contract_id: str,
         contract_type: str,
-        cups: str,
-        contract_info: Dict[str, Any],
-        house_contract: Dict[str, Any],
     ):
         super().__init__(coordinator, name, variable, device_class, device, house_id, contract_id)
         self.contract_type = contract_type
-        self.cups = cups
-        self.contract_info = contract_info or {}
-        self.house_contract = house_contract or {}
 
     @property
     def native_value(self) -> Any:
         data = (self.coordinator.data or {}).get(self.contract_id) or {}
+        contract_info, house_contract = get_contract_snapshot(
+            self.coordinator.data, self.contract_id
+        )
 
         # COSTES
         if self.variable in {"amount", "consumption", "totalDays", "amountVariable", "amountFixed", "averageAmount"}:
@@ -286,15 +283,10 @@ class VivitSensor(VivitBase):
 
         # ÚLTIMA FACTURA
         if self.variable == "lastInvoiceAmount":
-            inv = data.get("invoices")
-            obj = None
-            if isinstance(inv, list) and inv:
-                obj = inv[0]
-            elif isinstance(inv, dict):
-                obj = inv
+            obj = get_latest_invoice(data.get("invoices"))
             if not obj:
                 return None
-            return obj.get("amount") or obj.get("totalAmount")
+            return obj.get("amount") if "amount" in obj else obj.get("totalAmount")
 
         # PRÓXIMA FACTURA
         if self.variable in {"nextInvoiceAmount", "nextInvoiceVariableAmount", "nextInvoiceFixedAmount"}:
@@ -309,9 +301,10 @@ class VivitSensor(VivitBase):
         # CAMPOS DE CONTRATO / PRECIOS
         if self.contract_type == "ELECTRICITY":
             if self.variable in {"status", "power", "fee"}:
-                return self.house_contract.get(self.variable) or self.contract_info.get(self.variable)
+                value = house_contract.get(self.variable)
+                return value if value is not None else contract_info.get(self.variable)
 
-            prices = (self.house_contract.get("prices") or self.contract_info.get("prices") or {})
+            prices = house_contract.get("prices") or contract_info.get("prices") or {}
             if self.variable == "pricesPowerPunta":
                 return _parse_price_list((prices.get("power") or []), 0)
             if self.variable == "pricesPowerValle":
@@ -323,8 +316,9 @@ class VivitSensor(VivitBase):
             if self.variable in {"fixedTerm", "variableTerm", "status"}:
                 # status desde house_contract o contract_info
                 if self.variable == "status":
-                    return self.house_contract.get("status") or self.contract_info.get("status")
-                energy_prices = (self.house_contract.get("prices") or {}).get("energy") or []
+                    value = house_contract.get("status")
+                    return value if value is not None else contract_info.get("status")
+                energy_prices = (house_contract.get("prices") or {}).get("energy") or []
                 if self.variable == "fixedTerm":
                     return _extract_gas_price(energy_prices, fixed=True)
                 if self.variable == "variableTerm":
@@ -345,19 +339,29 @@ class VivitVBSensor(VivitBase):
         device: DeviceInfo,
         house_id: str,
         contract_id: str,
-        coupon_data: Optional[Dict[str, Any]] = None,
+        latest_redemption: bool = False,
+        unique_id_suffix: str | None = None,
     ):
-        super().__init__(coordinator, name, variable, device_class, device, house_id, contract_id)
-        self.coupon_data = coupon_data
+        super().__init__(
+            coordinator,
+            name,
+            variable,
+            device_class,
+            device,
+            house_id,
+            contract_id,
+            unique_id_suffix,
+        )
+        self.latest_redemption = latest_redemption
 
     @property
     def native_value(self) -> Any:
-        # Si es un sensor “coupon” (último canje), leemos de ese snapshot
-        if self.coupon_data:
-            return self.coupon_data.get(self.variable)
-
         data = (self.coordinator.data or {}).get(self.contract_id) or {}
         vb = data.get("virtual_battery_history") or {}
+        if self.latest_redemption:
+            latest = get_latest_redemption(vb)
+            return latest.get(self.variable) if latest else None
+
         discounts = vb.get("discounts") or {}
         excedents = vb.get("excedents") or {}
 

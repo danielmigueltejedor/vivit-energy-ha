@@ -1,7 +1,7 @@
 name: ✨ Feature request
 description: Suggest a new feature or improvement
 title: "[Feature]: "
-labels: ["enhancement"]
+labels: ["type: enhancement", "status: needs triage"]
 assignees: []
 
 body:
@@ -9,6 +9,26 @@ body:
     attributes:
       value: |
         Thanks for your suggestion! 🚀
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Related area
+      options:
+        - Authentication / login
+        - Contracts / configuration flow
+        - Consumption / costs
+        - Invoices
+        - Virtual battery
+        - Sensors / entities
+        - Installation / HACS
+        - Translations
+        - Performance
+        - Security
+        - Documentation
+        - Other / not sure
+    validations:
+      required: true
 
   - type: textarea
     id: description
@@ -23,6 +43,8 @@ body:
     attributes:
       label: Problem it solves
       description: What problem does this feature solve?
+    validations:
+      required: true
 
   - type: textarea
     id: solution

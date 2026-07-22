@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install validation tools
+        run: python -m pip install ruff
+      - name: Ruff
+        run: ruff check custom_components/repsol_vivit tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile integration
+        run: python -m compileall -q custom_components/repsol_vivit

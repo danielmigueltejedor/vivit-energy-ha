@@ -10,7 +10,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, LOGGER
-from .helpers import build_device_name
+from .helpers import build_device_identifier, build_device_name, get_latest_invoice
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
@@ -87,7 +87,7 @@ class VivitLastInvoicePaidBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.house_id}_{self.contract_id}")},
+            identifiers={(DOMAIN, build_device_identifier(self.house_id, self.contract_id))},
             name=self.device_name,
             manufacturer="Vivit Energy (unofficial)",
             model=("Electricidad" if self.contract_type == "ELECTRICITY" else "Gas"),
@@ -98,34 +98,26 @@ class VivitLastInvoicePaidBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         data = (self.coordinator.data or {}).get(self.contract_id) or {}
-        invoices = data.get("invoices")
-        last_invoice = None
-
-        if isinstance(invoices, list) and invoices:
-            last_invoice = invoices[0]
-        elif isinstance(invoices, dict):
-            last_invoice = invoices
+        last_invoice = get_latest_invoice(data.get("invoices"))
 
         if not last_invoice:
             return None
 
-        return last_invoice.get("status") == "PAID"
+        return str(last_invoice.get("status") or "").upper() == "PAID"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         data = (self.coordinator.data or {}).get(self.contract_id) or {}
-        invoices = data.get("invoices")
-        last_invoice = None
-
-        if isinstance(invoices, list) and invoices:
-            last_invoice = invoices[0]
-        elif isinstance(invoices, dict):
-            last_invoice = invoices
+        last_invoice = get_latest_invoice(data.get("invoices"))
 
         if not last_invoice:
             return {}
 
         return {
             "status": last_invoice.get("status"),
-            "amount": last_invoice.get("amount") or last_invoice.get("totalAmount"),
+            "amount": (
+                last_invoice.get("amount")
+                if "amount" in last_invoice
+                else last_invoice.get("totalAmount")
+            ),
         }

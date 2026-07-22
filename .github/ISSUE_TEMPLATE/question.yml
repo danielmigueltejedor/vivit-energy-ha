@@ -1,0 +1,38 @@
+name: ❓ Question
+description: Ask a question about Vivit Energy Portal
+title: "[Question]: "
+labels: ["type: question", "status: needs triage"]
+assignees: []
+
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Related area
+      options:
+        - Installation / HACS
+        - Authentication / login
+        - Contracts / configuration flow
+        - Consumption / costs
+        - Invoices
+        - Virtual battery
+        - Sensors / entities
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and what you have tried
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Home Assistant and integration versions

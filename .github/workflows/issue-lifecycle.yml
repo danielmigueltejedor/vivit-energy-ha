@@ -1,0 +1,202 @@
+name: Issue lifecycle
+
+on:
+  issues:
+    types: [opened, reopened, edited, assigned, labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update issue labels and feedback state
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const maintainer = "danielmigueltejedor";
+            const issue = context.payload.issue;
+            if (!issue || issue.pull_request) return;
+            const issue_number = issue.number;
+
+            const labelColors = {
+              "type: bug": "d73a4a",
+              "type: enhancement": "a2eeef",
+              "type: question": "d876e3",
+              "type: translation": "0e8a16",
+              "status: needs triage": "ededed",
+              "status: needs attention": "fbca04",
+              "status: waiting feedback": "c5def5",
+              "status: in progress": "1d76db",
+              "status: implemented": "5319e7",
+              "status: fixed": "0e8a16",
+              "maturity: alpha-ready": "7057ff",
+              "maturity: beta-ready": "6f42c1",
+              "maturity: stable": "2ea44f",
+              "release: fixed in alpha": "7057ff",
+              "release: fixed in beta": "6f42c1",
+              "release: available in stable": "2ea44f"
+            };
+
+            async function ensureLabel(name) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                try {
+                  await github.rest.issues.createLabel({
+                    owner,
+                    repo,
+                    name,
+                    color: labelColors[name] || (name.startsWith("area:") ? "bfdadc" : "ededed")
+                  });
+                } catch (createError) {
+                  if (createError.status !== 422) throw createError;
+                }
+              }
+            }
+
+            async function add(labels) {
+              if (!labels.length) return;
+              await Promise.all(labels.map(ensureLabel));
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels });
+            }
+
+            async function remove(labels) {
+              for (const name of labels) {
+                try {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                }
+              }
+            }
+
+            async function applyAreaLabels() {
+              const mappings = [
+                ["BLE scanning", "area: ble"],
+                ["Positioning / trilateration", "area: positioning"],
+                ["Calibration", "area: calibration"],
+                ["Floor plan / zones", "area: floor-plan"],
+                ["Persons / beacons", "area: beacons"],
+                ["Frontend / map", "area: frontend"],
+                ["Configuration flow", "area: config-flow"],
+                ["Authentication / login", "area: authentication"],
+                ["Contracts / configuration flow", "area: contracts"],
+                ["Consumption / costs", "area: consumption"],
+                ["Invoices", "area: invoices"],
+                ["Virtual battery", "area: virtual-battery"],
+                ["Sensors / entities", "area: entities"],
+                ["Installation / HACS", "area: onboarding"],
+                ["Translations", "area: translations"],
+                ["Performance", "area: performance"],
+                ["Security", "area: security"],
+                ["Documentation", "area: docs"]
+              ];
+              const desired = [...new Set(
+                mappings.filter(([needle]) => (issue.body || "").includes(needle)).map(([, label]) => label)
+              )];
+              if (!desired.length) return;
+              const currentAreas = (issue.labels || [])
+                .map(label => typeof label === "string" ? label : label.name)
+                .filter(name => name && name.startsWith("area:") && !desired.includes(name));
+              await remove(currentAreas);
+              await add(desired);
+            }
+
+            if (context.eventName === "issue_comment") {
+              if (context.payload.comment.user.type === "Bot") return;
+              const commenter = context.payload.comment.user.login;
+              if (commenter === maintainer) {
+                await add(["status: waiting feedback"]);
+                await remove(["status: needs triage", "status: needs attention"]);
+              } else {
+                await add(["status: needs attention"]);
+                await remove(["status: waiting feedback"]);
+              }
+              return;
+            }
+
+            const action = context.payload.action;
+            if (action === "opened" || action === "reopened") {
+              const type = issue.title.startsWith("[Bug]:")
+                ? "type: bug"
+                : issue.title.startsWith("[Feature]:")
+                  ? "type: enhancement"
+                  : issue.title.startsWith("[Question]:")
+                    ? "type: question"
+                    : issue.title.startsWith("[Translation]:")
+                      ? "type: translation"
+                      : null;
+              await Promise.all([
+                "release: fixed in alpha",
+                "release: fixed in beta",
+                "release: available in stable"
+              ].map(ensureLabel));
+              await add(["status: needs triage", ...(type ? [type] : [])]);
+              if (type === "type: translation") await add(["area: translations"]);
+              await remove([
+                "status: waiting feedback",
+                "status: in progress",
+                "status: implemented",
+                "status: fixed"
+              ]);
+              await applyAreaLabels();
+              return;
+            }
+
+            if (action === "edited") {
+              await applyAreaLabels();
+              return;
+            }
+
+            if (action === "assigned") {
+              await add(["status: in progress"]);
+              await remove([
+                "status: needs triage",
+                "status: needs attention",
+                "status: waiting feedback"
+              ]);
+              return;
+            }
+
+            if (action !== "labeled") return;
+            const label = context.payload.label.name;
+            const commonRemove = [
+              "status: needs triage",
+              "status: needs attention",
+              "status: in progress"
+            ];
+
+            if (label === "release: fixed in alpha" || label === "release: fixed in beta") {
+              const maturity = label.endsWith("alpha") ? "maturity: alpha-ready" : "maturity: beta-ready";
+              await add(["status: implemented", maturity]);
+              await remove(commonRemove);
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: [
+                  "Implemented in the latest prerelease build ✅",
+                  "",
+                  "You can test it from HACS by choosing **Redownload** and then **Need a different version?**.",
+                  "Please report back if the issue persists."
+                ].join("\n")
+              });
+            }
+
+            if (label === "release: available in stable") {
+              await add(["status: fixed", "maturity: stable"]);
+              await remove([...commonRemove, "status: implemented", "status: waiting feedback"]);
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: "Released in the latest stable version ✅\n\nThanks for the feedback."
+              });
+            }

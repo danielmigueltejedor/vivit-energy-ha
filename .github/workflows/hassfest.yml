@@ -2,18 +2,22 @@ name: Hassfest
 
 on:
   push:
-    branches:
-      - main
-      - master
   pull_request:
+  schedule:
+    - cron: "30 0 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   hassfest:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Run Hassfest
         uses: home-assistant/actions/hassfest@master
