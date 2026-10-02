@@ -2,5 +2,7 @@
   "name": "Vivit Energy Portal",
   "render_readme": true,
   "homeassistant": "2025.1.0",
-  "country": "ES"
+  "country": "ES",
+  "zip_release": true,
+  "filename": "vivit-energy-ha.zip"
 }
