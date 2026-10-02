@@ -3,10 +3,6 @@ name: Release asset
 on:
   release:
     types: [published]
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/release-asset.yml"
   workflow_dispatch:
     inputs:
       tag:
@@ -25,19 +21,13 @@ jobs:
     steps:
       - name: Resolve release tag
         id: tag
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            tag="${{ github.event.release.tag_name }}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            tag="${{ inputs.tag }}"
+            echo "value=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           else
-            tag="$(gh release view --repo "${{ github.repository }}" --json tagName --jq .tagName)"
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           fi
-          test -n "$tag"
-          echo "value=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Checkout release tag
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
