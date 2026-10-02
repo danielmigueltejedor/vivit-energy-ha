@@ -1,0 +1,62 @@
+name: Publish v2.1.14
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-v2.1.14.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("custom_components/repsol_vivit/manifest.json").read_text())
+          hacs = json.loads(Path("hacs.json").read_text())
+          assert manifest["version"] == "2.1.14"
+          assert hacs.get("zip_release") is True
+          assert hacs.get("filename") == "vivit-energy-ha.zip"
+          PY
+
+      - name: Build release ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd custom_components/repsol_vivit
+          zip -r "$GITHUB_WORKSPACE/vivit-energy-ha.zip" . \
+            -x "*/__pycache__/*" "*.pyc" "*.pyo" ".DS_Store"
+          cd "$GITHUB_WORKSPACE"
+          unzip -t vivit-energy-ha.zip
+          test "$(unzip -Z1 vivit-energy-ha.zip | grep -c '^manifest.json$')" -eq 1
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v2.1.14 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload v2.1.14 vivit-energy-ha.zip --repo "${{ github.repository }}" --clobber
+          else
+            gh release create v2.1.14 vivit-energy-ha.zip \
+              --repo "${{ github.repository }}" \
+              --target "${{ github.sha }}" \
+              --title "v2.1.14" \
+              --notes "## 2.1.14 — 2026-10-02
+
+### Maintenance
+- HACS now installs the integration from the release asset `vivit-energy-ha.zip`.
+- Release downloads can now be counted directly by GitHub."
+          fi
