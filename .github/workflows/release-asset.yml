@@ -1,0 +1,56 @@
+name: Release asset
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to backfill (for example v2.1.13)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-release-zip:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "value=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.tag.outputs.value }}
+
+      - name: Build HACS integration ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd custom_components/repsol_vivit
+          zip -r "$GITHUB_WORKSPACE/vivit-energy-ha.zip" . \
+            -x "*/__pycache__/*" "*.pyc" "*.pyo" ".DS_Store"
+          cd "$GITHUB_WORKSPACE"
+          unzip -t vivit-energy-ha.zip
+          test "$(unzip -Z1 vivit-energy-ha.zip | grep -c '^manifest.json$')" -eq 1
+
+      - name: Upload ZIP to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload "${{ steps.tag.outputs.value }}" \
+            vivit-energy-ha.zip \
+            --repo "${{ github.repository }}" \
+            --clobber
