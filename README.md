@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./custom_components/repsol_vivit/brand/logo.png" alt="Vivit Energy Portal logo" width="112">
+  <img src="https://raw.githubusercontent.com/danielmigueltejedor/vivit-energy-ha/main/custom_components/repsol_vivit/brand/logo.png" alt="Vivit Energy Portal logo" width="112">
   <h1>Vivit Energy Portal</h1>
   <p><strong>Repsol electricity, gas, invoices and virtual battery data in Home Assistant.</strong></p>
 
