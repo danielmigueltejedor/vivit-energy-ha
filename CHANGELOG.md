@@ -1,4 +1,10 @@
 # CHANGELOG
+
+## 2.1.14
+
+### Metadatos
+- Se incorpora la entrada que faltaba para la versión 2.1.14, ya publicada en el manifiesto de la integración. Este cambio es exclusivamente documental y no modifica el comportamiento de la integración.
+
 ## 2.1.13 — 2026-07-22
 
 ### Corregido
