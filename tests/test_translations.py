@@ -6,7 +6,6 @@ import json
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 TRANSLATIONS_DIR = ROOT / "custom_components" / "repsol_vivit" / "translations"
 LANGUAGES = ("es", "en", "pt")
