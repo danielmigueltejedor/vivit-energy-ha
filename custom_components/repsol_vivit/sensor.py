@@ -1,10 +1,11 @@
 """Sensors for Vivit Energy Portal (Unofficial)."""
+
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
@@ -67,8 +68,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     device_name = stored.get("device_name") or entry.data.get("device_name")
     enable_virtual_battery = is_virtual_battery_enabled(entry.options)
 
-    data: Dict[str, Dict[str, Any]] = coordinator.data or {}
-    entities: List[SensorEntity] = []
+    data: dict[str, dict[str, Any]] = coordinator.data or {}
+    entities: list[SensorEntity] = []
 
     if contract_id and contract_id in data:
         # Creación modo 1-contrato (preferido)
@@ -109,15 +110,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
 def _build_contract_entities(
-    full_data: Dict[str, Dict[str, Any]],
+    full_data: dict[str, dict[str, Any]],
     contract_id: str,
     device_name: str | None,
     contract_type: str | None,
     coordinator,
     enable_virtual_battery: bool,
-) -> List[SensorEntity]:
+) -> list[SensorEntity]:
     """Construye todas las entidades para un contrato."""
-    entities: List[SensorEntity] = []
+    entities: list[SensorEntity] = []
 
     payload = full_data.get(contract_id) or {}
     cinfo = payload.get("contracts") or {}
@@ -215,7 +216,7 @@ class VivitBase(CoordinatorEntity, SensorEntity):
         coordinator,
         name: str,
         variable: str,
-        device_class: Optional[SensorDeviceClass],
+        device_class: SensorDeviceClass | None,
         device: DeviceInfo,
         house_id: str | None,
         contract_id: str,
@@ -239,7 +240,7 @@ class VivitBase(CoordinatorEntity, SensorEntity):
         return self._device
 
     @property
-    def native_unit_of_measurement(self) -> Optional[str]:
+    def native_unit_of_measurement(self) -> str | None:
         user_currency = self.hass.config.currency
         if self._attr_device_class == SensorDeviceClass.ENERGY:
             return "kWh"
@@ -261,7 +262,7 @@ class VivitSensor(VivitBase):
         coordinator,
         name: str,
         variable: str,
-        device_class: Optional[SensorDeviceClass],
+        device_class: SensorDeviceClass | None,
         device: DeviceInfo,
         house_id: str,
         contract_id: str,
@@ -312,17 +313,16 @@ class VivitSensor(VivitBase):
             if self.variable == "pricesEnergyAmount":
                 return _parse_price_list((prices.get("energy") or []), 0)
 
-        if self.contract_type == "GAS":
-            if self.variable in {"fixedTerm", "variableTerm", "status"}:
-                # status desde house_contract o contract_info
-                if self.variable == "status":
-                    value = house_contract.get("status")
-                    return value if value is not None else contract_info.get("status")
-                energy_prices = (house_contract.get("prices") or {}).get("energy") or []
-                if self.variable == "fixedTerm":
-                    return _extract_gas_price(energy_prices, fixed=True)
-                if self.variable == "variableTerm":
-                    return _extract_gas_price(energy_prices, fixed=False)
+        if self.contract_type == "GAS" and self.variable in {"fixedTerm", "variableTerm", "status"}:
+            # status desde house_contract o contract_info
+            if self.variable == "status":
+                value = house_contract.get("status")
+                return value if value is not None else contract_info.get("status")
+            energy_prices = (house_contract.get("prices") or {}).get("energy") or []
+            if self.variable == "fixedTerm":
+                return _extract_gas_price(energy_prices, fixed=True)
+            if self.variable == "variableTerm":
+                return _extract_gas_price(energy_prices, fixed=False)
 
         return None
 
@@ -335,7 +335,7 @@ class VivitVBSensor(VivitBase):
         coordinator,
         name: str,
         variable: str,
-        device_class: Optional[SensorDeviceClass],
+        device_class: SensorDeviceClass | None,
         device: DeviceInfo,
         house_id: str,
         contract_id: str,
@@ -375,7 +375,7 @@ class VivitVBSensor(VivitBase):
             conv = next((d.get("conversionPrice") for d in (excedents.get("data") or [])), 0)
             try:
                 return round(float(pending) / float(conv), 2) if conv else None
-            except Exception:
+            except (IndexError, OverflowError, TypeError, ValueError, ZeroDivisionError):
                 return None
 
         if self.variable == "appliedAmount":
@@ -385,13 +385,13 @@ class VivitVBSensor(VivitBase):
             conv = next((d.get("conversionPrice") for d in (excedents.get("data") or [])), 0)
             try:
                 return round(float(excedents.get("appliedAmount", 0)) / float(conv), 2) if conv else None
-            except Exception:
+            except (IndexError, OverflowError, TypeError, ValueError, ZeroDivisionError):
                 return None
 
         if self.variable == "totalKWh":
             try:
                 return round(float(excedents.get("totalkWh", 0)), 2)
-            except Exception:
+            except (IndexError, OverflowError, TypeError, ValueError, ZeroDivisionError):
                 return None
 
         if self.variable == "excedentsPrice":
@@ -400,23 +400,23 @@ class VivitVBSensor(VivitBase):
         return None
 
 
-def _parse_price_list(prices: List[str], index: int) -> Any:
+def _parse_price_list(prices: list[str], index: int) -> Any:
     """
     Extrae números tipo '0,1234' o '0.1234' de una lista de strings y devuelve float.
     Ej: ["Punta: 0,1234 €/kWh", "Valle: 0,0987 €/kWh"] -> 0.1234 (index=0)
     """
-    parsed: List[str] = []
+    parsed: list[str] = []
     for p in prices:
         m = re.search(r"(\d+,\d+|\d+\.\d+)", str(p))
         if m:
             parsed.append(m.group(1).replace(",", "."))
     try:
         return float(parsed[index])
-    except Exception:
+    except (IndexError, OverflowError, TypeError, ValueError, ZeroDivisionError):
         return None
 
 
-def _extract_gas_price(prices: List[str], fixed: bool) -> Any:
+def _extract_gas_price(prices: list[str], fixed: bool) -> Any:
     """Busca 'Término Fijo' o 'Término Variable' y devuelve float."""
     key = "Término Fijo" if fixed else "Término Variable"
     for p in prices:
@@ -425,6 +425,6 @@ def _extract_gas_price(prices: List[str], fixed: bool) -> Any:
             if m:
                 try:
                     return float(m.group(1).replace(",", "."))
-                except Exception:
+                except (IndexError, OverflowError, TypeError, ValueError, ZeroDivisionError):
                     return None
     return None
