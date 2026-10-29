@@ -1,4 +1,5 @@
 """Integration for Vivit Energy (unofficial)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -65,10 +66,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             data = await client.fetch_all_data()
             if not data:
-                raise Exception("no_contracts")
+                raise UpdateFailed("no_contracts")
             store["last_data"] = data
             return data
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             msg = (str(err) or "").lower()
             # Sólo pedir reauth si Gigya confirma credenciales inválidas (errorCode 403042).
             # El resto de login_failed_* (bloqueo de seguridad, 5xx, parse, timeouts,
