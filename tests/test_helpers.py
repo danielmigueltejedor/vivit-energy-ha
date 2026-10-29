@@ -9,7 +9,6 @@ import unittest
 from datetime import timedelta
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CUSTOM_COMPONENTS_DIR = ROOT / "custom_components"
 COMPONENT_DIR = CUSTOM_COMPONENTS_DIR / "repsol_vivit"
