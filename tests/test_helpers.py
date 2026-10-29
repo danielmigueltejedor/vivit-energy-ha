@@ -1,4 +1,5 @@
 """Unit tests for pure Vivit helper functions."""
+
 from __future__ import annotations
 
 import importlib.util
