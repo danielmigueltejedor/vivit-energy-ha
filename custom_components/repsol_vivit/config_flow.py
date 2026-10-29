@@ -7,7 +7,6 @@ from typing import Any
 
 import voluptuous as vol
 from aiohttp.client_exceptions import ClientConnectorError
-
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
