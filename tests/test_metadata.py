@@ -7,7 +7,6 @@ import re
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "custom_components" / "repsol_vivit" / "manifest.json"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
