@@ -22,7 +22,11 @@ from .const import (
     MAX_UPDATE_INTERVAL_MINUTES,
     MIN_UPDATE_INTERVAL_MINUTES,
 )
-from .helpers import build_device_name, get_update_interval_minutes, is_virtual_battery_enabled
+from .helpers import (
+    build_device_name,
+    get_update_interval_minutes,
+    is_virtual_battery_enabled,
+)
 
 
 class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
