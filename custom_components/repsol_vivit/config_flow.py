@@ -1,7 +1,7 @@
 """Config flow for Vivit Energy (unofficial)."""
+
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Mapping
 from typing import Any
 
@@ -71,7 +71,7 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     }
                     self._contracts = contracts
                     return await self.async_step_contract()
-            except (ClientConnectorError, asyncio.TimeoutError):
+            except (ClientConnectorError, TimeoutError):
                 errors["base"] = "cannot_connect"
             except Exception as err:  # noqa: BLE001
                 msg = (str(err) or "").lower()
@@ -192,7 +192,7 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "device_name": build_device_name(idx, contract_type),
                         },
                     )
-            except (ClientConnectorError, asyncio.TimeoutError):
+            except (ClientConnectorError, TimeoutError):
                 errors["base"] = "cannot_connect"
             except Exception as err:  # noqa: BLE001
                 msg = (str(err) or "").lower()
