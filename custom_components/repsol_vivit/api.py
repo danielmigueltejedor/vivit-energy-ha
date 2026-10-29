@@ -1,4 +1,5 @@
 """API client for Vivit/Repsol."""
+
 from __future__ import annotations
 
 import asyncio
@@ -16,10 +17,10 @@ from .const import (
     COSTS_URL,
     HOUSES_URL,
     INVOICES_URL,
+    LOGGER,
     LOGIN_DATA,
     LOGIN_HEADERS,
     LOGIN_URL,
-    LOGGER,
     NEXT_INVOICE_URL,
     REFERER_BILLING,
     REFERER_PRODUCTS,
@@ -38,6 +39,10 @@ LOGIN_FAILURE_COOLDOWN = 300.0
 # Cooldown extendido cuando Gigya devuelve rate-limit explícito.
 LOGIN_RATE_LIMIT_COOLDOWN = 900.0
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+
+
+class VivitAPIError(Exception):
+    """Provider response, authentication or contract validation failed."""
 
 
 class RepsolLuzYGasAPI:
@@ -66,7 +71,7 @@ class RepsolLuzYGasAPI:
     def _validated_id(self, value: str, name: str) -> str:
         """Valida IDs remotos antes de construir URLs."""
         if not isinstance(value, str) or not ID_RE.fullmatch(value):
-            raise Exception(f"invalid_{name}")
+            raise VivitAPIError(f"invalid_{name}")
         return value
 
     def _clear_auth(self) -> None:
@@ -83,7 +88,7 @@ class RepsolLuzYGasAPI:
             try:
                 jar.clear_domain(domain)
             except Exception:  # noqa: BLE001
-                pass
+                LOGGER.debug("Could not clear Repsol cookies for %s", domain, exc_info=True)
 
     async def _bootstrap_gigya(self) -> None:
         """Obtiene un gmid fresco de Gigya antes de accounts.login.
@@ -202,7 +207,7 @@ class RepsolLuzYGasAPI:
                     ) as response:
                         if response.status in (401, 403):
                             if relogins >= MAX_RELOGINS:
-                                raise Exception(f"http_{response.status}")
+                                raise VivitAPIError(f"http_{response.status}")
                             reset = relogins >= 1
                             LOGGER.info(
                                 "GET %s -> %s. Re-login (reset_cookies=%s) y reintento.",
@@ -235,10 +240,10 @@ class RepsolLuzYGasAPI:
                             continue
 
                         if response.status != 200:
-                            raise Exception(f"http_{response.status}")
+                            raise VivitAPIError(f"http_{response.status}")
 
                         return await response.json(content_type=None)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 last_exc = err
                 if str(err).startswith("http_"):
                     raise
@@ -275,7 +280,7 @@ class RepsolLuzYGasAPI:
                     else LOGIN_FAILURE_COOLDOWN
                 )
                 if since_fail < cooldown:
-                    raise Exception(self._last_login_err)
+                    raise VivitAPIError(self._last_login_err)
             if reset_cookies:
                 self._clear_cookies()
                 self._clear_auth()
@@ -305,22 +310,22 @@ class RepsolLuzYGasAPI:
                                     if attempt == 0:
                                         await self._bootstrap_gigya()
                                         continue
-                                    raise Exception(
+                                    raise VivitAPIError(
                                         f"login_failed_blocked {response.status}"
                                     )
-                                raise Exception(f"login_failed_http {response.status}")
+                                raise VivitAPIError(f"login_failed_http {response.status}")
 
                             try:
                                 payload = await response.json(content_type=None)
-                            except Exception as err:  # noqa: BLE001
-                                raise Exception("login_failed_parse") from err
+                            except Exception as err:
+                                raise VivitAPIError("login_failed_parse") from err
 
                             # Gigya devuelve HTTP 200 incluso en errores; hay que inspeccionar errorCode.
                             error_code = payload.get("errorCode", 0) or 0
                             if error_code:
                                 # 403042: loginID/password incorrectos (reauth real).
                                 if error_code == 403042:
-                                    raise Exception(f"login_failed_credentials {error_code}")
+                                    raise VivitAPIError(f"login_failed_credentials {error_code}")
                                 # 400006 y similares: bloqueo temporal de seguridad.
                                 if error_code in (400006, 400125, 403047, 500001):
                                     LOGGER.warning(
@@ -332,7 +337,7 @@ class RepsolLuzYGasAPI:
                                     if attempt == 0:
                                         await self._bootstrap_gigya()
                                         continue
-                                    raise Exception(
+                                    raise VivitAPIError(
                                         f"login_failed_blocked {error_code}"
                                     )
                                 # Resto: transitorio. Reintento una vez.
@@ -342,7 +347,7 @@ class RepsolLuzYGasAPI:
                                 )
                                 if attempt == 0:
                                     continue
-                                raise Exception(
+                                raise VivitAPIError(
                                     f"login_failed_gigya {error_code}"
                                 )
 
@@ -360,7 +365,7 @@ class RepsolLuzYGasAPI:
                                 self._clear_auth()
                                 if attempt == 0:
                                     continue
-                                raise Exception("login_failed_tokens")
+                                raise VivitAPIError("login_failed_tokens")
 
                             # Login OK: limpiamos cooldown de error.
                             self._last_login_err = None
@@ -369,7 +374,7 @@ class RepsolLuzYGasAPI:
                             await self._warmup_areacliente()
                             return True
 
-                raise Exception("login_failed")
+                raise VivitAPIError("login_failed")
             except Exception as err:
                 self._last_login_err = str(err) or "login_failed"
                 self._last_login_fail_at = time.monotonic()
@@ -433,7 +438,7 @@ class RepsolLuzYGasAPI:
                         if response.status == 200:
                             payload = await response.json(content_type=None)
                             if not isinstance(payload, dict):
-                                raise Exception("invalid_invoice_estimate_response")
+                                raise VivitAPIError("invalid_invoice_estimate_response")
                             return {
                                 "amount": payload.get("amount", 0),
                                 "amountVariable": payload.get("amountVariable", 0),
@@ -442,7 +447,7 @@ class RepsolLuzYGasAPI:
 
                         if response.status in (401, 403):
                             if relogins >= MAX_RELOGINS:
-                                raise Exception(f"http_{response.status}")
+                                raise VivitAPIError(f"http_{response.status}")
                             reset = relogins >= 1
                             LOGGER.info(
                                 "Invoice estimate %s -> %s. Re-login (reset_cookies=%s) y reintento.",
@@ -485,7 +490,7 @@ class RepsolLuzYGasAPI:
                             )
                             return base
 
-                        raise Exception(f"http_{response.status}")
+                        raise VivitAPIError(f"http_{response.status}")
             except Exception as err:  # noqa: BLE001
                 last_exc = err
                 if str(err) in {"http_401", "http_403"}:
@@ -516,12 +521,12 @@ class RepsolLuzYGasAPI:
                         if response.status == 200:
                             payload = await response.json(content_type=None)
                             if not isinstance(payload, dict):
-                                raise Exception("invalid_virtual_battery_response")
+                                raise VivitAPIError("invalid_virtual_battery_response")
                             return payload
 
                         if response.status in (401, 403):
                             if relogins >= MAX_RELOGINS:
-                                raise Exception(f"http_{response.status}")
+                                raise VivitAPIError(f"http_{response.status}")
                             reset = relogins >= 1
                             LOGGER.info(
                                 "VB history %s -> %s. Re-login (reset_cookies=%s) y reintento.",
@@ -563,7 +568,7 @@ class RepsolLuzYGasAPI:
                             )
                             return {}
 
-                        raise Exception(f"http_{response.status}")
+                        raise VivitAPIError(f"http_{response.status}")
             except Exception as err:  # noqa: BLE001
                 last_exc = err
                 if str(err) in {"http_401", "http_403"}:
@@ -673,7 +678,7 @@ class RepsolLuzYGasAPI:
             ]
 
         if not contracts_list:
-            raise Exception("no_contracts")
+            raise VivitAPIError("no_contracts")
 
         payloads = await asyncio.gather(
             *(self._fetch_contract_data(contract) for contract in contracts_list)

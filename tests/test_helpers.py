@@ -1,4 +1,5 @@
 """Unit tests for pure Vivit helper functions."""
+
 from __future__ import annotations
 
 import importlib.util
@@ -7,7 +8,6 @@ import types
 import unittest
 from datetime import timedelta
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 CUSTOM_COMPONENTS_DIR = ROOT / "custom_components"

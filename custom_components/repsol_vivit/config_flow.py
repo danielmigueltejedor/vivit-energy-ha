@@ -1,13 +1,12 @@
 """Config flow for Vivit Energy (unofficial)."""
+
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
 from aiohttp.client_exceptions import ClientConnectorError
-
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
@@ -22,7 +21,11 @@ from .const import (
     MAX_UPDATE_INTERVAL_MINUTES,
     MIN_UPDATE_INTERVAL_MINUTES,
 )
-from .helpers import build_device_name, get_update_interval_minutes, is_virtual_battery_enabled
+from .helpers import (
+    build_device_name,
+    get_update_interval_minutes,
+    is_virtual_battery_enabled,
+)
 
 
 class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -71,7 +74,7 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     }
                     self._contracts = contracts
                     return await self.async_step_contract()
-            except (ClientConnectorError, asyncio.TimeoutError):
+            except (ClientConnectorError, TimeoutError):
                 errors["base"] = "cannot_connect"
             except Exception as err:  # noqa: BLE001
                 msg = (str(err) or "").lower()
@@ -192,7 +195,7 @@ class RepsolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "device_name": build_device_name(idx, contract_type),
                         },
                     )
-            except (ClientConnectorError, asyncio.TimeoutError):
+            except (ClientConnectorError, TimeoutError):
                 errors["base"] = "cannot_connect"
             except Exception as err:  # noqa: BLE001
                 msg = (str(err) or "").lower()
