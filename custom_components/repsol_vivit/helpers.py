@@ -76,6 +76,20 @@ def get_latest_redemption(virtual_battery: Mapping[str, Any] | None) -> dict[str
     return max(valid_entries, key=lambda entry: str(entry.get("billingDate") or ""), default=None)
 
 
+_DECIMAL_AMOUNT_RE = re.compile(r"(\d+[.,]\d+)")
+
+
+def parse_decimal_amount(value: Any) -> float | None:
+    """Return the first comma or dot decimal found in text."""
+    match = _DECIMAL_AMOUNT_RE.search(str(value))
+    if match is None:
+        return None
+    try:
+        return float(match.group(1).replace(",", "."))
+    except (OverflowError, ValueError):
+        return None
+
+
 def redact_provider_url(url: str) -> str:
     """Redact house and contract identifiers before writing a provider URL to logs."""
     redacted = re.sub(r"(?<=/houses/)[^/?]+", "<house>", str(url))

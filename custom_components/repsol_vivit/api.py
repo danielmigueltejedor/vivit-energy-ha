@@ -197,52 +197,40 @@ class RepsolLuzYGasAPI:
         current_headers = dict(headers)
         log_url = redact_provider_url(url)
         relogins = 0
-        attempt = 0
 
-        while attempt <= REQUEST_RETRIES:
+        for attempt in range(REQUEST_RETRIES + 1):
+            retry_status: int | None = None
             try:
-                async with asyncio.timeout(REQ_TIMEOUT):
-                    async with self.session.get(
-                        url, headers=current_headers, cookies=self.cookies
-                    ) as response:
-                        if response.status in (401, 403):
-                            if relogins >= MAX_RELOGINS:
+                # El re-login no consume un intento ni espera: solo se reintenta
+                # el GET. La pausa de backoff queda fuera de este bucle.
+                while True:
+                    async with asyncio.timeout(REQ_TIMEOUT):
+                        async with self.session.get(
+                            url, headers=current_headers, cookies=self.cookies
+                        ) as response:
+                            if response.status in (401, 403):
+                                if relogins >= MAX_RELOGINS:
+                                    raise VivitAPIError(f"http_{response.status}")
+                                reset = relogins >= 1
+                                LOGGER.info(
+                                    "GET %s -> %s. Re-login (reset_cookies=%s) y reintento.",
+                                    log_url,
+                                    response.status,
+                                    reset,
+                                )
+                                await self.async_login(reset_cookies=reset)
+                                current_headers = self._refresh_auth_headers(current_headers)
+                                relogins += 1
+                                continue
+
+                            if response.status in (429, 500, 502, 503, 504):
+                                retry_status = response.status
+                                break
+
+                            if response.status != 200:
                                 raise VivitAPIError(f"http_{response.status}")
-                            reset = relogins >= 1
-                            LOGGER.info(
-                                "GET %s -> %s. Re-login (reset_cookies=%s) y reintento.",
-                                log_url,
-                                response.status,
-                                reset,
-                            )
-                            await self.async_login(reset_cookies=reset)
-                            current_headers = self._refresh_auth_headers(current_headers)
-                            relogins += 1
-                            continue
 
-                        if response.status in (429, 500, 502, 503, 504):
-                            if attempt < REQUEST_RETRIES:
-                                LOGGER.debug(
-                                    "GET %s -> %s. Reintento %s/%s.",
-                                    log_url,
-                                    response.status,
-                                    attempt + 1,
-                                    REQUEST_RETRIES + 1,
-                                )
-                                await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
-                            else:
-                                LOGGER.warning(
-                                    "GET %s -> %s. Sin más reintentos en este ciclo.",
-                                    log_url,
-                                    response.status,
-                                )
-                            attempt += 1
-                            continue
-
-                        if response.status != 200:
-                            raise VivitAPIError(f"http_{response.status}")
-
-                        return await response.json(content_type=None)
+                            return await response.json(content_type=None)
             except Exception as err:
                 last_exc = err
                 if str(err).startswith("http_"):
@@ -258,7 +246,23 @@ class RepsolLuzYGasAPI:
                     await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
                 else:
                     LOGGER.warning("GET %s agotó reintentos: %s", log_url, err)
-                attempt += 1
+                continue
+
+            if attempt < REQUEST_RETRIES:
+                LOGGER.debug(
+                    "GET %s -> %s. Reintento %s/%s.",
+                    log_url,
+                    retry_status,
+                    attempt + 1,
+                    REQUEST_RETRIES + 1,
+                )
+                await asyncio.sleep(RETRY_SLEEP_BASE * (attempt + 1))
+            else:
+                LOGGER.warning(
+                    "GET %s -> %s. Sin más reintentos en este ciclo.",
+                    log_url,
+                    retry_status,
+                )
 
         raise last_exc or Exception("request_failed")
 
