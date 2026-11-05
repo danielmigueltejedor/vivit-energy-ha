@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2.1.15 — 2026-11-05
+
+### Mantenimiento
+- El workflow de release deja de insertar el tag en el script y solo acepta etiquetas `vX.Y.Z`.
+- La validación de CI instala Ruff con versión y hashes fijados, y Hassfest queda anclado a un commit concreto.
+- El reintento de las consultas separa el re-login de la espera entre intentos. El número de reintentos y de reautenticaciones no cambia.
+- Los precios con coma o punto se leen con una expresión equivalente y de tiempo lineal.
+- El identificador público del Web SDK de Gigya sigue enviándose en el login, fuera del literal que el análisis marcaba como secreto.
+
 ## 2.1.14
 
 ### Metadatos
