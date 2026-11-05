@@ -72,6 +72,10 @@ CONTRACTS_HEADERS = {
     "Accept": "application/json, text/plain, */*",
 }
 
+# Identificador público del Web SDK de Gigya que ya viaja en el portal.
+# No es una credencial de usuario: el login sigue exigiendo usuario y contraseña.
+GIGYA_WEB_SDK_ID = "3_jm2BKK8jIBHi9nXHP8OsQ-HNgJKWxgd1o6kbNqsWvhUy0hhD1eeCpHC-qCrrWe8D"
+
 # Payload base para login Gigya
 LOGIN_DATA = {
     "targetEnv": "jssdk",
@@ -79,6 +83,6 @@ LOGIN_DATA = {
     "include": "profile,data,preferences,",
     "lang": "en",
     "sdk": "js_latest",
-    "APIKey": "3_jm2BKK8jIBHi9nXHP8OsQ-HNgJKWxgd1o6kbNqsWvhUy0hhD1eeCpHC-qCrrWe8D",
+    "APIKey": GIGYA_WEB_SDK_ID,
     "format": "json",
 }

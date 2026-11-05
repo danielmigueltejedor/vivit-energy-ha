@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -18,6 +17,7 @@ from .helpers import (
     get_latest_invoice,
     get_latest_redemption,
     is_virtual_battery_enabled,
+    parse_decimal_amount,
 )
 
 # Sensores base (nombres LIMPIOS; el nombre del dispositivo es quien lleva "Contrato N (…)").
@@ -405,26 +405,25 @@ def _parse_price_list(prices: list[str], index: int) -> Any:
     Extrae números tipo '0,1234' o '0.1234' de una lista de strings y devuelve float.
     Ej: ["Punta: 0,1234 €/kWh", "Valle: 0,0987 €/kWh"] -> 0.1234 (index=0)
     """
-    parsed: list[str] = []
-    for p in prices:
-        m = re.search(r"(\d+,\d+|\d+\.\d+)", str(p))
-        if m:
-            parsed.append(m.group(1).replace(",", "."))
+    parsed = [
+        amount
+        for price in prices
+        if (amount := parse_decimal_amount(price)) is not None
+    ]
     try:
-        return float(parsed[index])
-    except (IndexError, OverflowError, TypeError, ValueError, ZeroDivisionError):
+        return parsed[index]
+    except IndexError:
         return None
 
 
 def _extract_gas_price(prices: list[str], fixed: bool) -> Any:
     """Busca 'Término Fijo' o 'Término Variable' y devuelve float."""
     key = "Término Fijo" if fixed else "Término Variable"
-    for p in prices:
-        if key in str(p):
-            m = re.search(r"(\d+,\d+|\d+\.\d+)", str(p))
-            if m:
-                try:
-                    return float(m.group(1).replace(",", "."))
-                except (IndexError, OverflowError, TypeError, ValueError, ZeroDivisionError):
-                    return None
+    for price in prices:
+        text = str(price)
+        if key not in text:
+            continue
+        amount = parse_decimal_amount(text)
+        if amount is not None:
+            return amount
     return None

@@ -120,6 +120,17 @@ class HelperTests(unittest.TestCase):
         }
         self.assertEqual(helpers.get_latest_redemption(history)["amount"], 2)
 
+    def test_login_payload_uses_public_gigya_sdk_id(self) -> None:
+        self.assertEqual(const.LOGIN_DATA["APIKey"], const.GIGYA_WEB_SDK_ID)
+        self.assertTrue(const.GIGYA_WEB_SDK_ID.startswith("3_"))
+        self.assertNotIn("password", const.LOGIN_DATA)
+
+    def test_parse_decimal_amount_accepts_comma_and_dot(self) -> None:
+        self.assertEqual(helpers.parse_decimal_amount("Punta: 0,1234 €/kWh"), 0.1234)
+        self.assertEqual(helpers.parse_decimal_amount("Valle: 0.0987 €/kWh"), 0.0987)
+        self.assertIsNone(helpers.parse_decimal_amount("sin importe"))
+        self.assertIsNone(helpers.parse_decimal_amount("9" * 4000))
+
     def test_provider_url_redacts_personal_identifiers(self) -> None:
         url = (
             "https://areacliente.repsol.es/api/proxy/houses/house-secret/"
